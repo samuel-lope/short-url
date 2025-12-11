@@ -1,0 +1,23 @@
+{
+  "name": "short-url",
+  "version": "1.0.0",
+  "description": "",
+  "homepage": "https://github.com/samuel-lope/short-url#readme",
+  "bugs": {
+    "url": "https://github.com/samuel-lope/short-url/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/samuel-lope/short-url.git"
+  },
+  "license": "ISC",
+  "author": "Samuel Lopes",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "hashids": "^2.3.0"
+  }
+}
