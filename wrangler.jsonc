@@ -1,0 +1,30 @@
+{
+  "name": "shrot-url",
+  "compatibility_date": "2025-06-20",
+  "main": "src/index.js",
+  "assets": {
+    "directory": "./public"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "shorturldb",
+      "database_id": "3e58056d-5ec2-4132-bee8-d038ed229a3b"
+    }
+  ],
+  "vars": {
+  },
+  "kv_namespaces": [
+  ],
+  "routes": [
+    {
+      "pattern": "sa.api.br",
+      "custom_domain": true
+    }
+  ],
+  "observability": {
+    "logs": {
+      "enabled": true
+    }
+  }
+}
