@@ -1,5 +1,5 @@
 {
-  "name": "shrot-url",
+  "name": "short-url",
   "compatibility_date": "2025-06-20",
   "main": "src/index.js",
   "assets": {
