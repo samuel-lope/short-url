@@ -1,1 +1,311 @@
-<html></html>
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SA.API.BR</title>
+    <style>
+        /* --- RESET & BASE --- */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Courier New', Courier, monospace; /* Fonte monoespaçada clássica brutalista */
+        }
+
+        body {
+            background-color: #f0f0f0;
+            /* Padrão de fundo pontilhado sutil para textura */
+            background-image: radial-gradient(#000 1px, transparent 1px);
+            background-size: 20px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        /* --- NEOBRUTALIST CONTAINER --- */
+        .container {
+            background-color: #fff;
+            border: 4px solid #000;
+            box-shadow: 10px 10px 0px #000; /* Sombra dura, característica chave */
+            padding: 40px;
+            width: 100%;
+            max-width: 500px;
+            position: relative;
+        }
+
+        /* Etiqueta flutuante estilo "badge" */
+        .badge {
+            position: absolute;
+            top: -20px;
+            right: -10px;
+            background-color: #ff4d4d; /* Vermelho vibrante */
+            color: #fff;
+            padding: 5px 15px;
+            border: 3px solid #000;
+            font-weight: bold;
+            transform: rotate(3deg);
+            box-shadow: 3px 3px 0px #000;
+        }
+
+        h1 {
+            font-weight: 900;
+            text-transform: uppercase;
+            font-size: 2rem;
+            margin-bottom: 30px;
+            border-bottom: 4px solid #000;
+            padding-bottom: 10px;
+            line-height: 1;
+        }
+
+        /* --- FORM ELEMENTS --- */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 8px;
+            font-size: 1.1rem;
+            background-color: #ffee00; /* Destaque amarelo */
+            width: fit-content;
+            padding: 2px 5px;
+            border: 2px solid #000;
+        }
+
+        input {
+            width: 100%;
+            padding: 15px;
+            font-size: 1rem;
+            border: 3px solid #000;
+            background-color: #e6f7ff;
+            outline: none;
+            transition: all 0.1s ease;
+            box-shadow: 4px 4px 0px #000;
+        }
+
+        input:focus {
+            transform: translate(2px, 2px);
+            box-shadow: 2px 2px 0px #000;
+            background-color: #fff;
+        }
+
+        /* --- ACTION BUTTON --- */
+        .btn-create {
+            width: 100%;
+            padding: 15px;
+            font-size: 1.2rem;
+            font-weight: 900;
+            background-color: #7d5fff; /* Roxo vibrante */
+            color: #fff;
+            border: 3px solid #000;
+            cursor: pointer;
+            box-shadow: 6px 6px 0px #000;
+            text-transform: uppercase;
+            transition: all 0.1s ease;
+            margin-top: 10px;
+        }
+
+        .btn-create:hover {
+            transform: translate(-2px, -2px);
+            box-shadow: 8px 8px 0px #000;
+            background-color: #6a4ce0;
+        }
+
+        .btn-create:active {
+            transform: translate(6px, 6px);
+            box-shadow: 0px 0px 0px #000;
+        }
+
+        .btn-create:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+            box-shadow: 2px 2px 0px #000;
+            transform: translate(4px, 4px);
+        }
+
+        /* --- RESULT AREA --- */
+        #result-area {
+            margin-top: 40px;
+            padding: 20px;
+            background-color: #00ff9d; /* Verde menta neon */
+            border: 3px solid #000;
+            display: none; /* Escondido por padrão */
+            animation: slideUp 0.3s ease-out;
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .short-url-display {
+            font-weight: bold;
+            font-size: 1.1rem;
+            word-break: break-all;
+            margin-bottom: 15px;
+            display: block;
+            background: #fff;
+            border: 2px solid #000;
+            padding: 10px;
+        }
+
+        .btn-copy {
+            width: 100%;
+            padding: 10px;
+            font-weight: bold;
+            background-color: #fff;
+            border: 2px solid #000;
+            cursor: pointer;
+            box-shadow: 4px 4px 0px #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            transition: all 0.1s;
+        }
+
+        .btn-copy:active {
+            transform: translate(4px, 4px);
+            box-shadow: 0px 0px 0px #000;
+        }
+
+        /* Ícone simples SVG inline */
+        .icon {
+            width: 20px;
+            height: 20px;
+        }
+
+        .error-msg {
+            color: #fff;
+            background-color: #ff0000;
+            padding: 10px;
+            border: 2px solid #000;
+            margin-top: 20px;
+            font-weight: bold;
+            display: none;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="badge">BETA v1</div>
+        <h1>SHORT<br>APL</h1>
+
+        <form id="shortenerForm">
+            <div class="form-group">
+                <label for="longUrl">URL LONGA</label>
+                <input type="url" id="longUrl" placeholder="https://exemplo.com/muito-longo" required>
+            </div>
+
+            <div class="form-group">
+                <label for="titleUrl">APELIDO (Opcional)</label>
+                <input type="text" id="titleUrl" placeholder="Ex: Promoção Natal">
+            </div>
+
+            <button type="submit" class="btn-create" id="submitBtn">
+                CRIAR LINK CURTO
+            </button>
+        </form>
+
+        <div id="errorArea" class="error-msg"></div>
+
+        <div id="result-area">
+            <label style="background-color: #fff; margin-bottom: 5px;">SEU LINK PRONTO:</label>
+            <div class="short-url-display" id="shortLinkDisplay">...</div>
+            
+            <button class="btn-copy" id="copyBtn">
+                <!-- Ícone de Copiar -->
+                <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                COPIAR LINK
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // CONFIGURAÇÃO
+        // Ajuste esta URL se estiver rodando localmente (ex: http://127.0.0.1:8787/v1/short)
+        // Ou use o caminho relativo se este HTML for servido pelo próprio Worker
+        const API_ENDPOINT = 'https://sa.api.br/v1/short'; 
+
+        const form = document.getElementById('shortenerForm');
+        const submitBtn = document.getElementById('submitBtn');
+        const resultArea = document.getElementById('result-area');
+        const shortLinkDisplay = document.getElementById('shortLinkDisplay');
+        const copyBtn = document.getElementById('copyBtn');
+        const errorArea = document.getElementById('errorArea');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            // Resetar estados
+            errorArea.style.display = 'none';
+            resultArea.style.display = 'none';
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'ENCURTANDO...';
+
+            const longUrl = document.getElementById('longUrl').value;
+            const titleUrl = document.getElementById('titleUrl').value;
+
+            try {
+                const response = await fetch(API_ENDPOINT, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        url: longUrl,
+                        title: titleUrl
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Erro: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+
+                // Sucesso
+                shortLinkDisplay.textContent = data.short_url;
+                resultArea.style.display = 'block';
+                
+            } catch (err) {
+                errorArea.textContent = 'ERRO AO CRIAR LINK. TENTE NOVAMENTE.';
+                errorArea.style.display = 'block';
+                console.error(err);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'CRIAR LINK CURTO';
+            }
+        });
+
+        // Lógica de Copiar para Área de Transferência
+        copyBtn.addEventListener('click', () => {
+            const textToCopy = shortLinkDisplay.textContent;
+            
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                const originalText = copyBtn.innerHTML;
+                
+                // Feedback visual brutalista
+                copyBtn.style.backgroundColor = '#000';
+                copyBtn.style.color = '#fff';
+                copyBtn.textContent = 'COPIADO!';
+                
+                setTimeout(() => {
+                    copyBtn.innerHTML = originalText;
+                    copyBtn.style.backgroundColor = '#fff';
+                    copyBtn.style.color = '#000';
+                }, 2000);
+            }).catch(err => {
+                alert('Falha ao copiar!');
+            });
+        });
+    </script>
+</body>
+</html>
+
