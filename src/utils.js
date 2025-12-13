@@ -9,7 +9,7 @@ const getHasher = (salt) => {
   const alphabet = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
   
   // minLength: 7 garante que o código tenha pelo menos 7 digitos
-  return new Hashids(salt, 7, alphabet);
+  return new Hashids(salt, 4, alphabet);
 };
 
 export const encodeId = (id, salt) => {
