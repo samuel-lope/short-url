@@ -228,10 +228,11 @@
     </div>
 
     <script>
-        // CONFIGURAÇÃO
-        // Ajuste esta URL se estiver rodando localmente (ex: http://127.0.0.1:8787/v1/short)
-        // Ou use o caminho relativo se este HTML for servido pelo próprio Worker
-        const API_ENDPOINT = 'https://sa.api.br/v1/short'; 
+        // --- CORREÇÃO AQUI ---
+        // Usamos caminho relativo. O navegador completará com o domínio atual.
+        // Se estiver em ue.ia.br, vira https://ue.ia.br/v1/short
+        // Se estiver em sa.api.br, vira https://sa.api.br/v1/short
+        const API_ENDPOINT = '/v1/short'; 
 
         const form = document.getElementById('shortenerForm');
         const submitBtn = document.getElementById('submitBtn');
@@ -264,20 +265,21 @@
                     })
                 });
 
-                if (!response.ok) {
-                    throw new Error(`Erro: ${response.statusText}`);
-                }
-
                 const data = await response.json();
+
+                if (!response.ok) {
+                    // Tenta pegar a mensagem de erro da API ou usa uma genérica
+                    throw new Error(data.error || `Erro HTTP: ${response.status}`);
+                }
 
                 // Sucesso
                 shortLinkDisplay.textContent = data.short_url;
                 resultArea.style.display = 'block';
                 
             } catch (err) {
-                errorArea.textContent = 'ERRO AO CRIAR LINK. TENTE NOVAMENTE.';
+                console.error('Detalhes do erro:', err);
+                errorArea.textContent = `ERRO: ${err.message}`;
                 errorArea.style.display = 'block';
-                console.error(err);
             } finally {
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'CRIAR LINK CURTO';

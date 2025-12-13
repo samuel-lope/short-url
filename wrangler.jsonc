@@ -20,6 +20,10 @@
     {
       "pattern": "sa.api.br",
       "custom_domain": true
+    },
+    {
+      "pattern": "ue.ia.br",
+      "custom_domain": true
     }
   ],
   "observability": {
