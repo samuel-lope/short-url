@@ -1,11 +1,25 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { Link } from 'react-router-dom';
-import { ExternalLink, Plus, QrCode, Settings, Shuffle } from 'lucide-react';
+import { BarChart3, ExternalLink, Link2, Plus, QrCode, Settings, Shield, Shuffle } from 'lucide-react';
 import { useAuth } from '../../app/AuthContext.tsx';
 import { apiRequest } from '../../lib/api.ts';
 import { CopyButton } from '../../shared/CopyButton.tsx';
 import { FeatureGate } from '../../shared/FeatureGate.tsx';
 import { Modal } from '../../shared/Modal.tsx';
+import {
+  Alert,
+  Badge,
+  BentoGrid,
+  Button,
+  ButtonLink,
+  ChoiceGroup,
+  EmptyState,
+  Field,
+  PageHeader,
+  Skeleton,
+  StatTile,
+  TextInput,
+  Tile,
+} from '../../shared/ui/index.ts';
 
 interface LinkSummary {
   id: number;
@@ -102,75 +116,78 @@ export function DashboardPage() {
     .filter(([, cap]) => cap.enabled)
     .map(([key]) => key);
 
+  const isAdmin = Boolean(
+    user && (user.role === 'admin' || user.plan.hasFullAccess || hasFeature('admin.profiles'))
+  );
+
   return (
-    <div style={{ display: 'grid', gap: '1.5rem' }}>
-      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
-        <div>
-          <h1 className="page-title" style={{ marginBottom: '0.35rem', color: '#ffffff', borderBottomColor: 'rgba(255,255,255,0.35)' }}>
-            Painel de Controle
-          </h1>
-          <div style={{ fontSize: '0.88rem', color: '#dbeafe' }}>
-            Perfil: <strong>{user?.plan.name}</strong> · Recursos ativos:{' '}
-            <strong>{enabledFeatures.length}</strong>
-          </div>
-        </div>
-
-        <FeatureGate feature="links.create">
-          <button type="button" className="y2k-btn y2k-btn-primary" onClick={() => setCreateOpen(true)}>
-            <Plus size={18} aria-hidden="true" />
-            <span>Novo Link</span>
-          </button>
-        </FeatureGate>
-      </div>
-
-      {overview && (
-        <section className="stats-grid" aria-label="Resumo de uso">
-          <div className="y2k-card-sm">
-            <div className="stat-label">Links Criados</div>
-            <div className="stat-value">{overview.totalLinks}</div>
-          </div>
-          <div className="y2k-card-sm y2k-card-mint">
-            <div className="stat-label">Cliques Totais</div>
-            <div className="stat-value">{overview.totalClicks}</div>
-          </div>
-          <div className="y2k-card-sm">
-            <div className="stat-label">Links Dinâmicos</div>
-            <div className="stat-value">{overview.dynamicLinks}</div>
-          </div>
-          <div className="y2k-card-sm y2k-card-yellow">
-            <div className="stat-label">Scans de QR</div>
-            <div className="stat-value">{overview.totalScans}</div>
-          </div>
-        </section>
-      )}
+    <div>
+      <PageHeader
+        title="Painel de Controle"
+        subtitle={
+          <>
+            Perfil ativo: <strong>{user?.plan.name}</strong> · {enabledFeatures.length} funcionalidades liberadas
+          </>
+        }
+        actions={
+          <FeatureGate feature="links.create">
+            <Button variant="primary" onClick={() => setCreateOpen(true)}>
+              <Plus size={18} aria-hidden="true" />
+              <span>Novo Link</span>
+            </Button>
+          </FeatureGate>
+        }
+      />
 
       {error && (
-        <div className="alert-error" role="alert">
-          {error}
+        <div style={{ marginBottom: '1rem' }}>
+          <Alert tone="error">{error}</Alert>
         </div>
       )}
 
-      <section className="y2k-window" aria-labelledby="links-table-heading">
-        <div className="y2k-titlebar">
-          <h2 id="links-table-heading" style={{ margin: 0, fontSize: '0.9rem', fontWeight: 800 }}>
-            MEUS_LINKS.SYS
-          </h2>
-          <span className="y2k-titlebar-dots" aria-hidden="true">
-            <span className="y2k-win-glyph">_</span>
-            <span className="y2k-win-glyph">□</span>
-          </span>
-        </div>
+      <BentoGrid cols={4} label="Visão geral e lista de links">
+        <StatTile
+          label="Links criados"
+          value={overview?.totalLinks ?? links.length}
+          icon={<Link2 size={16} aria-hidden="true" />}
+        />
+        <StatTile
+          label="Cliques totais"
+          value={overview?.totalClicks ?? 0}
+          variant="accent"
+          icon={<BarChart3 size={16} aria-hidden="true" />}
+        />
+        <StatTile
+          label="Links dinâmicos"
+          value={overview?.dynamicLinks ?? links.filter((l) => l.mode === 'dynamic').length}
+          icon={<Shuffle size={16} aria-hidden="true" />}
+        />
+        <StatTile
+          label="Scans de QR"
+          value={overview?.totalScans ?? 0}
+          icon={<QrCode size={16} aria-hidden="true" />}
+        />
 
-        <div className="y2k-window-body">
+        <Tile c={3} r={2} title="Seus Short Links" aria-labelledby="links-table-heading">
           {loading ? (
-            <div className="y2k-card-sm">Carregando links...</div>
+            <Skeleton rows={4} />
           ) : links.length === 0 ? (
-            <div className="y2k-card-sm">
-              Você ainda não criou nenhum link na sua conta. Clique em <strong>Novo Link</strong> para começar.
-            </div>
+            <EmptyState
+              icon={<Link2 size={28} aria-hidden="true" />}
+              title="Nenhum link criado ainda"
+              description="Crie seu primeiro short link para gerenciar destinos dinâmicos, QR Codes e métricas de uso."
+              action={
+                <FeatureGate feature="links.create">
+                  <Button variant="primary" size="sm" onClick={() => setCreateOpen(true)}>
+                    <Plus size={16} aria-hidden="true" />
+                    <span>Criar primeiro link</span>
+                  </Button>
+                </FeatureGate>
+              }
+            />
           ) : (
-            <div tabIndex={0} role="region" aria-labelledby="links-table-heading" className="table-wrapper">
-              <table className="y2k-table">
+            <div tabIndex={0} role="region" aria-label="Tabela de links" className="table-wrapper">
+              <table className="bento-table">
                 <thead>
                   <tr>
                     <th>Short URL</th>
@@ -184,52 +201,59 @@ export function DashboardPage() {
                   {links.map((item) => (
                     <tr key={item.id}>
                       <th scope="row">
-                        <div style={{ fontWeight: 900 }}>{item.title || item.shortCode}</div>
-                        <div className="mono-url" style={{ fontSize: '0.84rem' }}>
+                        <div>{item.title || item.shortCode}</div>
+                        <div className="mono-url" style={{ fontSize: '0.82rem', fontWeight: 400 }}>
                           <a href={item.shortUrl} target="_blank" rel="noreferrer">
                             {item.shortUrl} <ExternalLink size={12} aria-hidden="true" />
                           </a>
                         </div>
                       </th>
                       <td data-label="Tipo">
-                        <span className={`tag ${item.mode === 'dynamic' ? 'tag-purple' : 'tag-muted'}`}>
-                          {item.mode === 'dynamic' ? (
-                            <>
-                              <Shuffle size={12} aria-hidden="true" />
-                              <span>Dinâmico ({item.targetsCount})</span>
-                            </>
-                          ) : (
-                            'Estático'
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+                          <Badge tone={item.mode === 'dynamic' ? 'accent' : 'neutral'}>
+                            {item.mode === 'dynamic' ? (
+                              <>
+                                <Shuffle size={12} aria-hidden="true" />
+                                <span>Dinâmico ({item.targetsCount})</span>
+                              </>
+                            ) : (
+                              'Estático'
+                            )}
+                          </Badge>
+                          {item.hasQr && (
+                            <Badge tone="success">
+                              <QrCode size={12} aria-hidden="true" />
+                              <span>QR</span>
+                            </Badge>
                           )}
-                        </span>
-                        {item.hasQr && (
-                          <span className="tag tag-mint" style={{ marginLeft: '0.35rem' }}>
-                            <QrCode size={12} aria-hidden="true" />
-                            <span>QR</span>
-                          </span>
-                        )}
+                        </div>
                       </td>
                       <td data-label="Destino Ativo">
                         {item.activeTargetLabel && (
-                          <div style={{ fontWeight: 800, fontSize: '0.82rem' }}>{item.activeTargetLabel}</div>
+                          <div style={{ fontWeight: 600, fontSize: '0.82rem' }}>{item.activeTargetLabel}</div>
                         )}
-                        <div className="mono-url" style={{ fontSize: '0.82rem', maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <div
+                          className="mono-url text-muted"
+                          style={{ fontSize: '0.8rem', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                        >
                           {item.activeTargetUrl || item.longUrl}
                         </div>
                       </td>
                       <td data-label="Uso">
                         <strong>{item.totalClicks}</strong> cliques
                         {item.qrScanCount !== null && (
-                          <div style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>{item.qrScanCount} scans QR</div>
+                          <div className="text-muted" style={{ fontSize: '0.78rem' }}>
+                            {item.qrScanCount} scans QR
+                          </div>
                         )}
                       </td>
                       <td data-label="Ações">
                         <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap' }}>
                           <CopyButton text={item.shortUrl} label="Copiar" />
-                          <Link to={`/app/links/${item.id}`} className="y2k-btn y2k-btn-sm y2k-btn-yellow">
+                          <ButtonLink to={`/app/links/${item.id}`} size="sm">
                             <Settings size={14} aria-hidden="true" />
                             <span>Gerenciar</span>
-                          </Link>
+                          </ButtonLink>
                         </div>
                       </td>
                     </tr>
@@ -238,86 +262,92 @@ export function DashboardPage() {
               </table>
             </div>
           )}
-        </div>
-      </section>
+        </Tile>
 
-      <Modal open={createOpen} title="NOVO_LINK.EXE" onClose={() => setCreateOpen(false)}>
+        <Tile c={1} variant="muted" title="Seu Perfil" subtitle={user?.email}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+            {enabledFeatures.map((key) => (
+              <Badge key={key} tone="neutral">
+                {key}
+              </Badge>
+            ))}
+          </div>
+          {isAdmin && (
+            <div style={{ marginTop: 'auto' }}>
+              <ButtonLink to="/admin" variant="secondary" size="sm">
+                <Shield size={15} aria-hidden="true" />
+                <span>Console Admin</span>
+              </ButtonLink>
+            </div>
+          )}
+        </Tile>
+      </BentoGrid>
+
+      <Modal open={createOpen} title="Criar novo link" onClose={() => setCreateOpen(false)}>
         <form className="form-stack" onSubmit={handleCreate}>
-          <div className="field">
-            <label htmlFor="modal-url" className="field-label">
-              URL de Destino
-            </label>
-            <input
-              id="modal-url"
-              type="url"
-              className="y2k-input"
-              placeholder="https://exemplo.com/destino"
-              required
-              autoFocus
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-            />
-          </div>
+          <Field label="URL de destino" htmlFor="modal-url" required>
+            {({ inputId }) => (
+              <TextInput
+                id={inputId}
+                type="url"
+                placeholder="https://exemplo.com/destino"
+                required
+                autoFocus
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+              />
+            )}
+          </Field>
 
-          <div className="field">
-            <label htmlFor="modal-title" className="field-label">
-              Título / Apelido (Opcional)
-            </label>
-            <input
-              id="modal-title"
-              type="text"
-              className="y2k-input"
-              placeholder="Ex: Campanha Black Friday"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-            />
-          </div>
+          <Field label="Título / Apelido (opcional)" htmlFor="modal-title">
+            {({ inputId }) => (
+              <TextInput
+                id={inputId}
+                type="text"
+                placeholder="Ex: Campanha Black Friday"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+              />
+            )}
+          </Field>
 
           <FeatureGate feature="url.dynamic_switch">
-            <fieldset style={{ border: '2px solid var(--bevel-mid)', borderRadius: 6, padding: '0.65rem', margin: 0 }}>
-              <legend className="field-label">Modo do Link</legend>
-              <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginTop: '0.35rem' }}>
-                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
-                  <input type="radio" name="modalMode" checked={mode === 'dynamic'} onChange={() => setMode('dynamic')} />
-                  <span>Dinâmico</span>
-                </label>
-                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
-                  <input type="radio" name="modalMode" checked={mode === 'static'} onChange={() => setMode('static')} />
-                  <span>Estático</span>
-                </label>
-              </div>
-            </fieldset>
+            <ChoiceGroup
+              legend="Modo do link"
+              name="modalMode"
+              type="radio"
+              value={mode}
+              onChange={(v) => setMode(v)}
+              options={[
+                { value: 'dynamic', label: 'Dinâmico' },
+                { value: 'static', label: 'Estático' },
+              ]}
+            />
           </FeatureGate>
 
           <FeatureGate feature="links.custom_slug">
-            <div className="field">
-              <label htmlFor="modal-slug" className="field-label">
-                Slug Personalizado (Opcional)
-              </label>
-              <input
-                id="modal-slug"
-                type="text"
-                className="y2k-input"
-                placeholder="meu-link"
-                value={customSlug}
-                onChange={(e) => setCustomSlug(e.target.value)}
-              />
-            </div>
+            <Field label="Slug personalizado (opcional)" htmlFor="modal-slug">
+              {({ inputId }) => (
+                <TextInput
+                  id={inputId}
+                  type="text"
+                  placeholder="meu-link"
+                  value={customSlug}
+                  onChange={(e) => setCustomSlug(e.target.value)}
+                />
+              )}
+            </Field>
           </FeatureGate>
 
-          {createError && (
-            <div className="alert-error" role="alert">
-              {createError}
-            </div>
-          )}
+          {createError && <Alert tone="error">{createError}</Alert>}
 
           <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'flex-end' }}>
-            <button type="button" className="y2k-btn y2k-btn-sm" onClick={() => setCreateOpen(false)}>
+            <Button size="sm" onClick={() => setCreateOpen(false)}>
               Cancelar
-            </button>
-            <button type="submit" className="y2k-btn y2k-btn-primary y2k-btn-sm" disabled={submitting}>
-              {submitting ? 'Criando...' : 'Criar Link'}
-            </button>
+            </Button>
+            <Button type="submit" variant="primary" size="sm" disabled={submitting}>
+              {submitting ? 'Criando...' : 'Criar link'}
+            </Button>
           </div>
         </form>
       </Modal>

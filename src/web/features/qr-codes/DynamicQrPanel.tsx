@@ -5,6 +5,16 @@ import type { QrStyle } from '../../../shared/contracts.ts';
 import { apiRequest } from '../../lib/api.ts';
 import { FeatureGate, LockedFeatureNotice } from '../../shared/FeatureGate.tsx';
 import { CopyButton } from '../../shared/CopyButton.tsx';
+import {
+  Alert,
+  Badge,
+  BentoGrid,
+  Button,
+  Field,
+  SelectInput,
+  TextInput,
+  Tile,
+} from '../../shared/ui/index.ts';
 
 interface Props {
   linkId: number;
@@ -109,161 +119,146 @@ export function DynamicQrPanel({ linkId, qrUrl, shortCode, initialQr, onSaved }:
       feature="qr.dynamic"
       fallback={<LockedFeatureNotice feature="qr.dynamic" title="QR Code Dinâmico bloqueado" />}
     >
-      <div className="split-grid">
-        <div className="y2k-card-sm" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.85rem' }}>
-          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'center' }}>
-            <span className="tag tag-mint">QR Dinâmico</span>
-            <span className="tag">{initialQr?.scanCount ?? 0} scans</span>
-          </div>
-
-          <div
-            style={{
-              border: '2px solid var(--bevel-dark)',
-              borderRadius: 6,
-              padding: '0.75rem',
-              background: style.bgColor,
-              textAlign: 'center',
-            }}
-          >
-            {previewPng && (
-              <img
-                src={previewPng}
-                alt={`QR Code dinâmico para ${qrUrl}`}
-                width={240}
-                height={240}
-                style={{ display: 'block', maxWidth: '100%', height: 'auto' }}
-              />
-            )}
-            {style.frameLabel && (
-              <div style={{ fontWeight: 900, marginTop: '0.5rem', color: style.fgColor, textTransform: 'uppercase' }}>
-                {style.frameLabel}
-              </div>
-            )}
-          </div>
-
-          <div className="mono-url" style={{ fontSize: '0.82rem', textAlign: 'center' }}>
-            Codifica: <strong>{qrUrl}</strong>
-          </div>
-
-          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'center' }}>
-            <CopyButton text={qrUrl} label="Copiar URL QR" />
-            <button type="button" className="y2k-btn y2k-btn-sm y2k-btn-yellow" onClick={downloadPng}>
-              <Download size={15} aria-hidden="true" />
-              <span>PNG</span>
-            </button>
-            <button type="button" className="y2k-btn y2k-btn-sm" onClick={downloadSvg}>
-              <Download size={15} aria-hidden="true" />
-              <span>SVG</span>
-            </button>
-          </div>
-        </div>
-
-        <form className="y2k-card-sm form-stack" onSubmit={handleSave}>
-          <h2 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 900, textTransform: 'uppercase' }}>
-            Personalizar QR Dinâmico
-          </h2>
-          <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--muted)' }}>
-            Alterar o destino ou as regras do link curto atualiza este QR automaticamente sem precisar reimprimir.
-          </p>
-
-          <div className="split-grid">
-            <div className="field">
-              <label htmlFor="qr-fg" className="field-label">
-                Cor dos módulos
-              </label>
-              <input
-                id="qr-fg"
-                type="color"
-                className="y2k-input"
-                style={{ padding: '0.25rem' }}
-                value={style.fgColor}
-                onChange={(e) => setStyle({ ...style, fgColor: e.target.value })}
-              />
+      <BentoGrid cols={4} label="QR Code dinâmico">
+        <Tile
+          c={2}
+          title="Pré-visualização"
+          action={
+            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+              <Badge tone="success">QR Dinâmico</Badge>
+              <Badge>{initialQr?.scanCount ?? 0} scans</Badge>
+            </div>
+          }
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.9rem' }}>
+            <div className="qr-frame" style={{ background: style.bgColor }}>
+              {previewPng && (
+                <img
+                  src={previewPng}
+                  alt={`QR Code dinâmico para ${qrUrl}`}
+                  width={220}
+                  height={220}
+                  style={{ display: 'block', maxWidth: '100%', height: 'auto' }}
+                />
+              )}
+              {style.frameLabel && (
+                <div style={{ fontWeight: 700, marginTop: '0.5rem', color: style.fgColor }}>
+                  {style.frameLabel}
+                </div>
+              )}
             </div>
 
-            <div className="field">
-              <label htmlFor="qr-bg" className="field-label">
-                Cor de fundo
-              </label>
-              <input
-                id="qr-bg"
-                type="color"
-                className="y2k-input"
-                style={{ padding: '0.25rem' }}
-                value={style.bgColor}
-                onChange={(e) => setStyle({ ...style, bgColor: e.target.value })}
-              />
+            <div className="mono-url text-muted" style={{ fontSize: '0.82rem', textAlign: 'center' }}>
+              Codifica: <strong>{qrUrl}</strong>
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+              <CopyButton text={qrUrl} label="Copiar URL QR" />
+              <Button size="sm" onClick={downloadPng}>
+                <Download size={15} aria-hidden="true" />
+                <span>PNG</span>
+              </Button>
+              <Button size="sm" onClick={downloadSvg}>
+                <Download size={15} aria-hidden="true" />
+                <span>SVG</span>
+              </Button>
             </div>
           </div>
+        </Tile>
 
-          <div className="split-grid">
-            <div className="field">
-              <label htmlFor="qr-ecc" className="field-label">
-                Correção de erro
-              </label>
-              <select
-                id="qr-ecc"
-                className="y2k-select"
-                value={style.errorCorrectionLevel}
-                onChange={(e) =>
-                  setStyle({ ...style, errorCorrectionLevel: e.target.value as QrStyle['errorCorrectionLevel'] })
-                }
-              >
-                <option value="L">Baixa (L - 7%)</option>
-                <option value="M">Média (M - 15%)</option>
-                <option value="Q">Alta (Q - 25%)</option>
-                <option value="H">Máxima (H - 30%)</option>
-              </select>
+        <Tile
+          c={2}
+          variant="muted"
+          title="Personalizar estilo"
+          subtitle="Alterar o destino ou as regras do link curto atualiza este QR automaticamente sem precisar reimprimir."
+        >
+          <form className="form-stack" onSubmit={handleSave}>
+            <div className="form-row">
+              <Field label="Cor dos módulos" htmlFor="qr-fg">
+                {({ inputId }) => (
+                  <TextInput
+                    id={inputId}
+                    type="color"
+                    style={{ padding: '0.25rem' }}
+                    value={style.fgColor}
+                    onChange={(e) => setStyle({ ...style, fgColor: e.target.value })}
+                  />
+                )}
+              </Field>
+
+              <Field label="Cor de fundo" htmlFor="qr-bg">
+                {({ inputId }) => (
+                  <TextInput
+                    id={inputId}
+                    type="color"
+                    style={{ padding: '0.25rem' }}
+                    value={style.bgColor}
+                    onChange={(e) => setStyle({ ...style, bgColor: e.target.value })}
+                  />
+                )}
+              </Field>
             </div>
 
-            <div className="field">
-              <label htmlFor="qr-margin" className="field-label">
-                Margem (0–10)
-              </label>
-              <input
-                id="qr-margin"
-                type="number"
-                min={0}
-                max={10}
-                className="y2k-input"
-                value={style.margin}
-                onChange={(e) => setStyle({ ...style, margin: Number(e.target.value) })}
-              />
-            </div>
-          </div>
+            <div className="form-row">
+              <Field label="Correção de erro" htmlFor="qr-ecc">
+                {({ inputId }) => (
+                  <SelectInput
+                    id={inputId}
+                    value={style.errorCorrectionLevel}
+                    onChange={(e) =>
+                      setStyle({
+                        ...style,
+                        errorCorrectionLevel: e.target.value as QrStyle['errorCorrectionLevel'],
+                      })
+                    }
+                  >
+                    <option value="L">Baixa (L - 7%)</option>
+                    <option value="M">Média (M - 15%)</option>
+                    <option value="Q">Alta (Q - 25%)</option>
+                    <option value="H">Máxima (H - 30%)</option>
+                  </SelectInput>
+                )}
+              </Field>
 
-          <div className="field">
-            <label htmlFor="qr-frame" className="field-label">
-              Legenda da moldura (Opcional)
-            </label>
-            <input
-              id="qr-frame"
-              type="text"
-              maxLength={32}
-              className="y2k-input"
-              placeholder="Ex: ESCANEIE AQUI"
-              value={style.frameLabel ?? ''}
-              onChange={(e) => setStyle({ ...style, frameLabel: e.target.value })}
-            />
-          </div>
-
-          {error && (
-            <div className="alert-error" role="alert">
-              {error}
+              <Field label="Margem (0–10)" htmlFor="qr-margin">
+                {({ inputId }) => (
+                  <TextInput
+                    id={inputId}
+                    type="number"
+                    min={0}
+                    max={10}
+                    value={style.margin}
+                    onChange={(e) => setStyle({ ...style, margin: Number(e.target.value) })}
+                  />
+                )}
+              </Field>
             </div>
-          )}
-          {savedMsg && (
-            <div className="y2k-card-sm y2k-card-mint" role="status">
-              <strong>{savedMsg}</strong>
-            </div>
-          )}
 
-          <button type="submit" className="y2k-btn y2k-btn-primary" disabled={saving}>
-            <Save size={17} aria-hidden="true" />
-            <span>{saving ? 'Salvando...' : initialQr ? 'Atualizar QR Dinâmico' : 'Criar QR Dinâmico'}</span>
-          </button>
-        </form>
-      </div>
+            <Field label="Legenda da moldura (opcional)" htmlFor="qr-frame">
+              {({ inputId }) => (
+                <TextInput
+                  id={inputId}
+                  type="text"
+                  maxLength={32}
+                  placeholder="Ex: ESCANEIE AQUI"
+                  value={style.frameLabel ?? ''}
+                  onChange={(e) => setStyle({ ...style, frameLabel: e.target.value })}
+                />
+              )}
+            </Field>
+
+            {error && <Alert tone="error">{error}</Alert>}
+            {savedMsg && <Alert tone="success">{savedMsg}</Alert>}
+
+            <div>
+              <Button type="submit" variant="primary" disabled={saving}>
+                <Save size={17} aria-hidden="true" />
+                <span>{saving ? 'Salvando...' : initialQr ? 'Atualizar QR Dinâmico' : 'Criar QR Dinâmico'}</span>
+              </Button>
+            </div>
+          </form>
+        </Tile>
+      </BentoGrid>
     </FeatureGate>
   );
 }

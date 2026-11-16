@@ -4,6 +4,19 @@ import type { RuleConfig, RuleType } from '../../../shared/contracts.ts';
 import { useAuth } from '../../app/AuthContext.tsx';
 import { apiRequest } from '../../lib/api.ts';
 import { FeatureGate, LockedFeatureNotice } from '../../shared/FeatureGate.tsx';
+import { Modal } from '../../shared/Modal.tsx';
+import {
+  Alert,
+  Badge,
+  BentoGrid,
+  Button,
+  ChoiceGroup,
+  EmptyState,
+  Field,
+  SelectInput,
+  TextInput,
+  Tile,
+} from '../../shared/ui/index.ts';
 
 export interface LinkTargetItem {
   id: number;
@@ -25,6 +38,16 @@ interface Props {
   onRefresh: () => Promise<void>;
 }
 
+function formatRuleSummary(ruleType: RuleType, ruleConfig: RuleConfig): string[] {
+  if (ruleType === 'manual' || !ruleConfig) return [];
+  const chips: string[] = [];
+  if (ruleConfig.devices?.length) chips.push(`Dispositivos: ${ruleConfig.devices.join(', ')}`);
+  if (ruleConfig.os?.length) chips.push(`OS: ${ruleConfig.os.join(', ')}`);
+  if (ruleConfig.countries?.length) chips.push(`Países: ${ruleConfig.countries.join(', ')}`);
+  if (ruleConfig.weight !== undefined) chips.push(`Peso A/B: ${ruleConfig.weight}%`);
+  return chips;
+}
+
 export function DynamicTargetsPanel({ linkId, mode, activeTargetId, targets, onRefresh }: Props) {
   const { hasFeature } = useAuth();
   const canConditional = hasFeature('url.conditional_rules');
@@ -35,7 +58,6 @@ export function DynamicTargetsPanel({ linkId, mode, activeTargetId, targets, onR
   const [priority, setPriority] = useState(0);
   const [setAsActive, setSetAsActive] = useState(true);
 
-  // Conditional rule fields
   const [devices, setDevices] = useState<Array<'mobile' | 'tablet' | 'desktop'>>([]);
   const [osList, setOsList] = useState<Array<'iOS' | 'Android' | 'Windows' | 'macOS' | 'Linux'>>([]);
   const [countriesRaw, setCountriesRaw] = useState('BR');
@@ -43,6 +65,7 @@ export function DynamicTargetsPanel({ linkId, mode, activeTargetId, targets, onR
 
   const [submitting, setSubmitting] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<LinkTargetItem | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const buildRuleConfig = (): RuleConfig => {
@@ -104,11 +127,13 @@ export function DynamicTargetsPanel({ linkId, mode, activeTargetId, targets, onR
     }
   };
 
-  const handleDelete = async (targetId: number) => {
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
     setError(null);
-    setBusyId(targetId);
+    setBusyId(deleteTarget.id);
     try {
-      await apiRequest(`/api/links/${linkId}/targets/${targetId}`, { method: 'DELETE' });
+      await apiRequest(`/api/links/${linkId}/targets/${deleteTarget.id}`, { method: 'DELETE' });
+      setDeleteTarget(null);
       await onRefresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao remover destino.');
@@ -126,250 +151,268 @@ export function DynamicTargetsPanel({ linkId, mode, activeTargetId, targets, onR
       feature="url.dynamic_switch"
       fallback={<LockedFeatureNotice feature="url.dynamic_switch" title="URL Dinâmica bloqueada" />}
     >
-      <div style={{ display: 'grid', gap: '1.5rem' }}>
+      <div style={{ display: 'grid', gap: '1.25rem' }}>
         {mode !== 'dynamic' && (
-          <div className="alert-info">
+          <Alert tone="info">
             Este link está no modo <strong>Estático</strong>. Ao adicionar ou ativar um destino abaixo, ele passará automaticamente para o modo <strong>Dinâmico</strong>.
-          </div>
+          </Alert>
         )}
 
-        {error && (
-          <div className="alert-error" role="alert">
-            {error}
-          </div>
-        )}
+        {error && <Alert tone="error">{error}</Alert>}
 
-        <section aria-labelledby="targets-list-heading">
-          <h2 id="targets-list-heading" style={{ margin: '0 0 0.75rem', fontSize: '1.1rem', fontWeight: 900, textTransform: 'uppercase' }}>
-            Destinos Cadastrados ({targets.length})
-          </h2>
-
+        <BentoGrid cols={4} label="Destinos dinâmicos">
           {targets.length === 0 ? (
-            <div className="y2k-card-sm">Nenhum destino dinâmico cadastrado ainda. Adicione o primeiro abaixo.</div>
+            <Tile c={4} variant="muted">
+              <EmptyState
+                icon={<Shuffle size={26} aria-hidden="true" />}
+                title="Nenhum destino dinâmico cadastrado"
+                description="Adicione destinos abaixo para alternar para onde este Short URL aponta."
+              />
+            </Tile>
           ) : (
-            <div style={{ display: 'grid', gap: '0.85rem' }}>
-              {targets.map((target) => {
-                const isSelected = activeTargetId === target.id;
-                return (
-                  <div
-                    key={target.id}
-                    className={`y2k-card-sm ${isSelected ? 'y2k-card-mint' : ''}`}
-                    style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '0.85rem' }}
-                  >
-                    <div style={{ minWidth: 0, flex: '1 1 260px' }}>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem', alignItems: 'center', marginBottom: '0.35rem' }}>
-                        <strong style={{ fontSize: '1rem' }}>{target.label}</strong>
-                        <span className="tag tag-muted">{target.ruleType}</span>
-                        {isSelected && (
-                          <span className="tag tag-purple">
-                            <CheckCircle2 size={13} aria-hidden="true" />
-                            <span>Ativo agora</span>
-                          </span>
-                        )}
-                        <span className="tag">{target.clicksCount} cliques</span>
-                      </div>
-                      <div className="mono-url" style={{ fontSize: '0.86rem' }}>{target.targetUrl}</div>
-                      {target.ruleConfig && (
-                        <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: '0.25rem' }}>
-                          Regra: {JSON.stringify(target.ruleConfig)} (prioridade {target.priority})
-                        </div>
-                      )}
+            targets.map((target) => {
+              const isSelected = activeTargetId === target.id;
+              const chips = formatRuleSummary(target.ruleType, target.ruleConfig);
+              return (
+                <Tile
+                  key={target.id}
+                  c={2}
+                  variant={isSelected ? 'accent' : 'default'}
+                  title={target.label}
+                  action={
+                    <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                      <Badge tone={isSelected ? 'neutral' : 'accent'}>{target.ruleType}</Badge>
+                      <Badge>{target.clicksCount} cliques</Badge>
                     </div>
+                  }
+                >
+                  <div className="mono-url" style={{ fontSize: '0.86rem' }}>
+                    {target.targetUrl}
+                  </div>
 
-                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                      {target.ruleType === 'manual' && !isSelected && (
-                        <button
-                          type="button"
-                          className="y2k-btn y2k-btn-sm y2k-btn-yellow"
+                  {chips.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+                      {chips.map((chip) => (
+                        <Badge key={chip} tone="neutral">
+                          {chip}
+                        </Badge>
+                      ))}
+                      <Badge tone="neutral">Prioridade {target.priority}</Badge>
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: 'auto' }}>
+                    {isSelected ? (
+                      <Badge tone="success">
+                        <CheckCircle2 size={13} aria-hidden="true" />
+                        <span>Ativo agora</span>
+                      </Badge>
+                    ) : (
+                      target.ruleType === 'manual' && (
+                        <Button
+                          size="sm"
                           disabled={busyId === target.id}
                           onClick={() => handleActivate(target.id)}
                         >
-                          <Shuffle size={15} aria-hidden="true" />
+                          <Shuffle size={14} aria-hidden="true" />
                           <span>Ativar destino</span>
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        className="y2k-btn y2k-btn-sm y2k-btn-danger"
-                        disabled={busyId === target.id}
-                        aria-label={`Remover destino ${target.label}`}
-                        onClick={() => handleDelete(target.id)}
-                      >
-                        <Trash2 size={15} aria-hidden="true" />
-                      </button>
-                    </div>
+                        </Button>
+                      )
+                    )}
+                    <Button
+                      variant="danger"
+                      size="sm"
+                      disabled={busyId === target.id}
+                      aria-label={`Remover destino ${target.label}`}
+                      onClick={() => setDeleteTarget(target)}
+                    >
+                      <Trash2 size={14} aria-hidden="true" />
+                    </Button>
                   </div>
-                );
-              })}
-            </div>
+                </Tile>
+              );
+            })
           )}
-        </section>
 
-        <section className="y2k-card-sm" aria-labelledby="add-target-heading">
-          <h2 id="add-target-heading" style={{ margin: '0 0 1rem', fontSize: '1.05rem', fontWeight: 900, textTransform: 'uppercase' }}>
-            Adicionar Novo Destino
-          </h2>
+          <Tile c={4} variant="muted" title="Adicionar novo destino" as="section" aria-labelledby="add-target-heading">
+            <form className="form-stack" onSubmit={handleAddTarget}>
+              <div className="form-row">
+                <Field label="Nome do destino" htmlFor="target-label" required>
+                  {({ inputId }) => (
+                    <TextInput
+                      id={inputId}
+                      name="label"
+                      type="text"
+                      placeholder="Ex: Loja iOS / Campanha B"
+                      required
+                      value={label}
+                      onChange={(e) => setLabel(e.target.value)}
+                    />
+                  )}
+                </Field>
 
-          <form className="form-stack" onSubmit={handleAddTarget}>
-            <div className="split-grid">
-              <div className="field">
-                <label htmlFor="target-label" className="field-label">
-                  Nome do destino
-                </label>
-                <input
-                  id="target-label"
-                  name="label"
-                  type="text"
-                  className="y2k-input"
-                  placeholder="Ex: Loja iOS / Campanha B"
-                  required
-                  value={label}
-                  onChange={(e) => setLabel(e.target.value)}
+                <Field label="URL de destino" htmlFor="target-url" required>
+                  {({ inputId }) => (
+                    <TextInput
+                      id={inputId}
+                      name="targetUrl"
+                      type="url"
+                      placeholder="https://destino.com/oferta"
+                      required
+                      value={targetUrl}
+                      onChange={(e) => setTargetUrl(e.target.value)}
+                    />
+                  )}
+                </Field>
+              </div>
+
+              <div className="form-row">
+                <Field label="Modo de ativação" htmlFor="target-rule-type">
+                  {({ inputId }) => (
+                    <SelectInput
+                      id={inputId}
+                      name="ruleType"
+                      value={ruleType}
+                      onChange={(e) => setRuleType(e.target.value as RuleType)}
+                    >
+                      <option value="manual">Manual (escolha direta do criador)</option>
+                      {canConditional && <option value="device">Condicional: Dispositivo</option>}
+                      {canConditional && <option value="os">Condicional: Sistema Operacional</option>}
+                      {canConditional && <option value="geo">Condicional: País (Geo)</option>}
+                      {canConditional && <option value="weight">Teste A/B (Peso percentual)</option>}
+                    </SelectInput>
+                  )}
+                </Field>
+
+                {ruleType !== 'manual' && (
+                  <Field label="Prioridade (menor = primeiro)" htmlFor="target-priority">
+                    {({ inputId }) => (
+                      <TextInput
+                        id={inputId}
+                        name="priority"
+                        type="number"
+                        min={0}
+                        max={999}
+                        value={priority}
+                        onChange={(e) => setPriority(Number(e.target.value))}
+                      />
+                    )}
+                  </Field>
+                )}
+              </div>
+
+              {!canConditional && (
+                <LockedFeatureNotice
+                  feature="url.conditional_rules"
+                  title="Regras automáticas (Device, OS, Geo, A/B)"
+                  description="No seu perfil atual você pode alternar manualmente entre destinos. Regras automáticas requerem liberação de 'url.conditional_rules'."
                 />
-              </div>
-
-              <div className="field">
-                <label htmlFor="target-url" className="field-label">
-                  URL de destino
-                </label>
-                <input
-                  id="target-url"
-                  name="targetUrl"
-                  type="url"
-                  className="y2k-input"
-                  placeholder="https://destino.com/oferta"
-                  required
-                  value={targetUrl}
-                  onChange={(e) => setTargetUrl(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="split-grid">
-              <div className="field">
-                <label htmlFor="target-rule-type" className="field-label">
-                  Modo de ativação
-                </label>
-                <select
-                  id="target-rule-type"
-                  name="ruleType"
-                  className="y2k-select"
-                  value={ruleType}
-                  onChange={(e) => setRuleType(e.target.value as RuleType)}
-                >
-                  <option value="manual">Manual (escolha direta do criador)</option>
-                  {canConditional && <option value="device">Condicional: Dispositivo</option>}
-                  {canConditional && <option value="os">Condicional: Sistema Operacional</option>}
-                  {canConditional && <option value="geo">Condicional: País (Geo)</option>}
-                  {canConditional && <option value="weight">Teste A/B (Peso percentual)</option>}
-                </select>
-              </div>
-
-              {ruleType !== 'manual' && (
-                <div className="field">
-                  <label htmlFor="target-priority" className="field-label">
-                    Prioridade (menor = primeiro)
-                  </label>
-                  <input
-                    id="target-priority"
-                    name="priority"
-                    type="number"
-                    min={0}
-                    max={999}
-                    className="y2k-input"
-                    value={priority}
-                    onChange={(e) => setPriority(Number(e.target.value))}
-                  />
-                </div>
               )}
-            </div>
 
-            {!canConditional && (
-              <LockedFeatureNotice
-                feature="url.conditional_rules"
-                title="Regras automáticas (Device, OS, Geo, A/B)"
-                description="No seu plano atual você pode alternar manualmente entre destinos. Regras automáticas requerem liberação de 'url.conditional_rules'."
-              />
-            )}
+              {ruleType === 'manual' && (
+                <label className="choice-pill" style={{ width: 'fit-content' }}>
+                  <input
+                    type="checkbox"
+                    checked={setAsActive}
+                    onChange={(e) => setSetAsActive(e.target.checked)}
+                  />
+                  <span>Definir imediatamente como destino ativo</span>
+                </label>
+              )}
 
-            {ruleType === 'manual' && (
-              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', fontWeight: 700, cursor: 'pointer' }}>
-                <input
+              {ruleType === 'device' && (
+                <ChoiceGroup
+                  legend="Dispositivos"
+                  name="devices"
                   type="checkbox"
-                  checked={setAsActive}
-                  onChange={(e) => setSetAsActive(e.target.checked)}
+                  value={devices}
+                  onChange={(d) => toggleItem(devices, d, setDevices)}
+                  options={[
+                    { value: 'mobile', label: 'Mobile' },
+                    { value: 'tablet', label: 'Tablet' },
+                    { value: 'desktop', label: 'Desktop' },
+                  ]}
                 />
-                <span>Definir imediatamente como destino ativo deste Short URL</span>
-              </label>
-            )}
+              )}
 
-            {ruleType === 'device' && (
-              <fieldset style={{ border: '2px solid var(--bevel-mid)', borderRadius: 6, padding: '0.75rem' }}>
-                <legend className="field-label">Dispositivos</legend>
-                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginTop: '0.35rem' }}>
-                  {(['mobile', 'tablet', 'desktop'] as const).map((d) => (
-                    <label key={d} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-                      <input type="checkbox" checked={devices.includes(d)} onChange={() => toggleItem(devices, d, setDevices)} />
-                      <span>{d}</span>
-                    </label>
-                  ))}
-                </div>
-              </fieldset>
-            )}
-
-            {ruleType === 'os' && (
-              <fieldset style={{ border: '2px solid var(--bevel-mid)', borderRadius: 6, padding: '0.75rem' }}>
-                <legend className="field-label">Sistemas Operacionais</legend>
-                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginTop: '0.35rem' }}>
-                  {(['iOS', 'Android', 'Windows', 'macOS', 'Linux'] as const).map((os) => (
-                    <label key={os} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-                      <input type="checkbox" checked={osList.includes(os)} onChange={() => toggleItem(osList, os, setOsList)} />
-                      <span>{os}</span>
-                    </label>
-                  ))}
-                </div>
-              </fieldset>
-            )}
-
-            {ruleType === 'geo' && (
-              <div className="field">
-                <label htmlFor="geo-countries" className="field-label">
-                  Códigos ISO de País (ex: BR, US, PT)
-                </label>
-                <input
-                  id="geo-countries"
-                  type="text"
-                  className="y2k-input"
-                  value={countriesRaw}
-                  onChange={(e) => setCountriesRaw(e.target.value)}
+              {ruleType === 'os' && (
+                <ChoiceGroup
+                  legend="Sistemas Operacionais"
+                  name="os"
+                  type="checkbox"
+                  value={osList}
+                  onChange={(os) => toggleItem(osList, os, setOsList)}
+                  options={[
+                    { value: 'iOS', label: 'iOS' },
+                    { value: 'Android', label: 'Android' },
+                    { value: 'Windows', label: 'Windows' },
+                    { value: 'macOS', label: 'macOS' },
+                    { value: 'Linux', label: 'Linux' },
+                  ]}
                 />
+              )}
+
+              {ruleType === 'geo' && (
+                <Field label="Códigos ISO de País (ex: BR, US, PT)" htmlFor="geo-countries">
+                  {({ inputId }) => (
+                    <TextInput
+                      id={inputId}
+                      type="text"
+                      value={countriesRaw}
+                      onChange={(e) => setCountriesRaw(e.target.value)}
+                    />
+                  )}
+                </Field>
+              )}
+
+              {ruleType === 'weight' && (
+                <Field label="Peso relativo (1–100)" htmlFor="ab-weight">
+                  {({ inputId }) => (
+                    <TextInput
+                      id={inputId}
+                      type="number"
+                      min={1}
+                      max={100}
+                      value={weight}
+                      onChange={(e) => setWeight(Number(e.target.value))}
+                    />
+                  )}
+                </Field>
+              )}
+
+              <div>
+                <Button type="submit" variant="primary" disabled={submitting}>
+                  <Plus size={17} aria-hidden="true" />
+                  <span>{submitting ? 'Salvando...' : 'Adicionar destino'}</span>
+                </Button>
               </div>
-            )}
-
-            {ruleType === 'weight' && (
-              <div className="field">
-                <label htmlFor="ab-weight" className="field-label">
-                  Peso relativo (1–100)
-                </label>
-                <input
-                  id="ab-weight"
-                  type="number"
-                  min={1}
-                  max={100}
-                  className="y2k-input"
-                  value={weight}
-                  onChange={(e) => setWeight(Number(e.target.value))}
-                />
-              </div>
-            )}
-
-            <button type="submit" className="y2k-btn y2k-btn-primary" disabled={submitting}>
-              <Plus size={18} aria-hidden="true" />
-              <span>{submitting ? 'Salvando...' : 'Adicionar destino'}</span>
-            </button>
-          </form>
-        </section>
+            </form>
+          </Tile>
+        </BentoGrid>
       </div>
+
+      <Modal
+        open={Boolean(deleteTarget)}
+        title="Remover destino?"
+        onClose={() => setDeleteTarget(null)}
+      >
+        <p style={{ marginTop: 0 }}>
+          Remover o destino <strong>{deleteTarget?.label}</strong> (<span className="mono-url">{deleteTarget?.targetUrl}</span>)?
+        </p>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.6rem' }}>
+          <Button size="sm" autoFocus onClick={() => setDeleteTarget(null)}>
+            Cancelar
+          </Button>
+          <Button
+            variant="danger"
+            size="sm"
+            disabled={busyId === deleteTarget?.id}
+            onClick={handleConfirmDelete}
+          >
+            Confirmar remoção
+          </Button>
+        </div>
+      </Modal>
     </FeatureGate>
   );
 }

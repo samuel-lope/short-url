@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Check, Copy } from 'lucide-react';
+import { Button } from './ui/index.ts';
 
 export function CopyButton({ text, label = 'Copiar' }: { text: string; label?: string }) {
   const [copied, setCopied] = useState(false);
@@ -15,9 +16,14 @@ export function CopyButton({ text, label = 'Copiar' }: { text: string; label?: s
   };
 
   return (
-    <button type="button" className="y2k-btn y2k-btn-sm" onClick={handleCopy}>
-      {copied ? <Check size={15} aria-hidden="true" /> : <Copy size={15} aria-hidden="true" />}
-      <span>{copied ? 'Copiado!' : label}</span>
-    </button>
+    <>
+      <Button size="sm" onClick={handleCopy}>
+        {copied ? <Check size={15} aria-hidden="true" /> : <Copy size={15} aria-hidden="true" />}
+        <span>{copied ? 'Copiado!' : label}</span>
+      </Button>
+      <span className="visually-hidden" aria-live="polite">
+        {copied ? 'Link copiado para a área de transferência.' : ''}
+      </span>
+    </>
   );
 }

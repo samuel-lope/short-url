@@ -1,7 +1,8 @@
 import { useId, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff } from 'lucide-react';
+import { BarChart3, Eye, EyeOff, QrCode, Shuffle } from 'lucide-react';
 import { useAuth } from '../../app/AuthContext.tsx';
+import { Alert, BentoGrid, Button, Field, TextInput, Tile } from '../../shared/ui/index.ts';
 
 export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   const { login, register } = useAuth();
@@ -24,9 +25,8 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   const passwordRef = useRef<HTMLInputElement>(null);
 
   const headingId = useId();
-  const nameErrId = useId();
-  const emailErrId = useId();
   const passErrId = useId();
+  const passHintId = useId();
 
   const validateAll = () => {
     const errors: Record<string, string> = {};
@@ -91,69 +91,57 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   };
 
   const showErr = (field: string) => (touched[field] || submitted) && Boolean(fieldErrors[field]);
+  const passError = showErr('password') ? fieldErrors.password : undefined;
 
   return (
-    <div className="main-narrow">
-      <section className="y2k-window" aria-labelledby={headingId}>
-        <div className="y2k-titlebar">
-          <span>{isRegister ? 'CADASTRO.EXE' : 'LOGIN.EXE'}</span>
-          <span className="y2k-titlebar-dots" aria-hidden="true">
-            <span className="y2k-win-glyph">_</span>
-            <span className="y2k-win-glyph">□</span>
-            <span className="y2k-win-glyph">×</span>
-          </span>
-        </div>
+    <BentoGrid cols={4} label={isRegister ? 'Criar conta' : 'Entrar'}>
+      <Tile c={2} as="section" aria-labelledby={headingId}>
+        <h1 id={headingId} className="page-title">
+          {isRegister ? 'Criar conta' : 'Entrar'}
+        </h1>
 
-        <div className="y2k-window-body">
-          <h1 id={headingId} className="page-title">
-            {isRegister ? 'Criar Conta' : 'Entrar'}
-          </h1>
-
-          <form className="form-stack" onSubmit={handleSubmit} noValidate aria-labelledby={headingId}>
-            {isRegister && (
-              <div className="field">
-                <label htmlFor="auth-name" className="field-label">
-                  Nome completo <span aria-hidden="true">*</span>
-                </label>
-                <input
+        <form className="form-stack" onSubmit={handleSubmit} noValidate aria-labelledby={headingId}>
+          {isRegister && (
+            <Field
+              label="Nome completo"
+              htmlFor="auth-name"
+              required
+              error={showErr('name') ? fieldErrors.name : undefined}
+            >
+              {({ inputId, describedBy, invalidClass }) => (
+                <TextInput
                   ref={nameRef}
-                  id="auth-name"
+                  id={inputId}
                   name="name"
                   type="text"
-                  className={`y2k-input${showErr('name') ? ' user-invalid-fallback' : ''}`}
+                  className={invalidClass}
                   autoComplete="name"
                   required
                   enterKeyHint="next"
                   aria-invalid={showErr('name')}
-                  aria-describedby={showErr('name') ? nameErrId : undefined}
+                  aria-describedby={describedBy}
                   value={name}
                   onChange={(e) => handleInput('name', setName, e.target.value)}
                   onBlur={() => handleBlur('name')}
                 />
-                {showErr('name') && (
-                  <div id={nameErrId} className="field-error">
-                    <span role="img" aria-label="Erro">
-                      ❌
-                    </span>
-                    <span>{fieldErrors.name}</span>
-                  </div>
-                )}
-              </div>
-            )}
+              )}
+            </Field>
+          )}
 
-            <div className="field">
-              <label htmlFor="auth-email" className="field-label">
-                E-mail <span aria-hidden="true">*</span>
-              </label>
-              <span id="email-hint" className="field-hint">
-                Formato: voce@exemplo.com
-              </span>
-              <input
+          <Field
+            label="E-mail"
+            htmlFor="auth-email"
+            hint="Formato: voce@exemplo.com"
+            required
+            error={showErr('email') ? fieldErrors.email : undefined}
+          >
+            {({ inputId, describedBy, invalidClass }) => (
+              <TextInput
                 ref={emailRef}
-                id="auth-email"
+                id={inputId}
                 name="email"
                 type="email"
-                className={`y2k-input${showErr('email') ? ' user-invalid-fallback' : ''}`}
+                className={invalidClass}
                 autoComplete="username"
                 spellCheck={false}
                 autoCapitalize="none"
@@ -161,101 +149,108 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
                 required
                 enterKeyHint="next"
                 aria-invalid={showErr('email')}
-                aria-describedby={showErr('email') ? `email-hint ${emailErrId}` : 'email-hint'}
+                aria-describedby={describedBy}
                 value={email}
                 onChange={(e) => handleInput('email', setEmail, e.target.value)}
                 onBlur={() => handleBlur('email')}
               />
-              {showErr('email') && (
-                <div id={emailErrId} className="field-error">
-                  <span role="img" aria-label="Erro">
-                    ❌
-                  </span>
-                  <span>{fieldErrors.email}</span>
-                </div>
-              )}
-            </div>
+            )}
+          </Field>
 
-            <div className="field">
-              <label htmlFor="auth-password" className="field-label">
-                Senha <span aria-hidden="true">*</span>
-              </label>
-              {isRegister && (
-                <span id="password-hint" className="field-hint">
-                  Mínimo de 8 caracteres.
+          <div className="field">
+            <label htmlFor="auth-password" className="field-label">
+              Senha <span aria-hidden="true">*</span>
+            </label>
+            {isRegister && (
+              <span id={passHintId} className="field-hint">
+                Mínimo de 8 caracteres.
+              </span>
+            )}
+            <div className="password-wrap">
+              <TextInput
+                ref={passwordRef}
+                id="auth-password"
+                name="password"
+                type={showPassword ? 'text' : 'password'}
+                className={passError ? 'user-invalid-fallback' : ''}
+                autoComplete={isRegister ? 'new-password' : 'current-password'}
+                minLength={isRegister ? 8 : 1}
+                required
+                enterKeyHint="done"
+                aria-invalid={Boolean(passError)}
+                aria-describedby={
+                  [isRegister ? passHintId : '', passError ? passErrId : ''].filter(Boolean).join(' ') || undefined
+                }
+                value={password}
+                onChange={(e) => handleInput('password', setPassword, e.target.value)}
+                onBlur={() => handleBlur('password')}
+              />
+              <Button
+                size="sm"
+                aria-pressed={showPassword}
+                aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                onClick={() => setShowPassword((prev) => !prev)}
+              >
+                {showPassword ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
+              </Button>
+            </div>
+            {passError && (
+              <div id={passErrId} className="field-error">
+                <span role="img" aria-label="Erro">
+                  ❌
                 </span>
-              )}
-              <div className="password-wrap">
-                <input
-                  ref={passwordRef}
-                  id="auth-password"
-                  name="password"
-                  type={showPassword ? 'text' : 'password'}
-                  className={`y2k-input${showErr('password') ? ' user-invalid-fallback' : ''}`}
-                  autoComplete={isRegister ? 'new-password' : 'current-password'}
-                  minLength={isRegister ? 8 : 1}
-                  required
-                  enterKeyHint="done"
-                  aria-invalid={showErr('password')}
-                  aria-describedby={
-                    [isRegister ? 'password-hint' : '', showErr('password') ? passErrId : '']
-                      .filter(Boolean)
-                      .join(' ') || undefined
-                  }
-                  value={password}
-                  onChange={(e) => handleInput('password', setPassword, e.target.value)}
-                  onBlur={() => handleBlur('password')}
-                />
-                <button
-                  type="button"
-                  className="y2k-btn y2k-btn-sm"
-                  aria-pressed={showPassword}
-                  aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
-                  onClick={() => setShowPassword((prev) => !prev)}
-                >
-                  {showPassword ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
-                </button>
-              </div>
-              {showErr('password') && (
-                <div id={passErrId} className="field-error">
-                  <span role="img" aria-label="Erro">
-                    ❌
-                  </span>
-                  <span>{fieldErrors.password}</span>
-                </div>
-              )}
-            </div>
-
-            {serverError && (
-              <div className="alert-error" role="alert">
-                {serverError}
+                <span>{passError}</span>
               </div>
             )}
+          </div>
 
-            <button type="submit" className="y2k-btn y2k-btn-primary" disabled={submitting}>
-              {submitting
-                ? isRegister
-                  ? 'Criando conta...'
-                  : 'Entrando...'
-                : isRegister
-                  ? 'Criar conta'
-                  : 'Entrar'}
-            </button>
-          </form>
+          {serverError && <Alert tone="error">{serverError}</Alert>}
 
-          <p style={{ marginTop: '1.25rem', fontSize: '0.92rem' }}>
-            {isRegister ? (
-              <>
-                Já tem conta? <Link to="/login">Entrar</Link>
-              </>
-            ) : (
-              <>
-                Ainda não tem conta? <Link to="/register">Criar conta</Link>
-              </>
-            )}
-          </p>
-        </div>
-      </section>
-    </div>
+          <Button type="submit" variant="primary" disabled={submitting}>
+            {submitting
+              ? isRegister
+                ? 'Criando conta...'
+                : 'Entrando...'
+              : isRegister
+                ? 'Criar conta'
+                : 'Entrar'}
+          </Button>
+        </form>
+
+        <p className="text-muted" style={{ margin: '0.25rem 0 0', fontSize: '0.9rem' }}>
+          {isRegister ? (
+            <>
+              Já tem conta? <Link to="/login">Entrar</Link>
+            </>
+          ) : (
+            <>
+              Ainda não tem conta? <Link to="/register">Criar conta</Link>
+            </>
+          )}
+        </p>
+      </Tile>
+
+      <Tile
+        c={2}
+        variant="accent"
+        title="Controle total sobre seus links"
+        subtitle="Ao entrar com seu perfil de Usuário Registrado você gerencia URLs, destinos dinâmicos, QR Codes e métricas."
+      >
+        <ul style={{ margin: '0.5rem 0 0', paddingLeft: '1.15rem', display: 'grid', gap: '0.75rem', fontSize: '0.92rem' }}>
+          <li style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+            <Shuffle size={17} aria-hidden="true" />
+            <span>Troca instantânea de destino sem mudar o short link</span>
+          </li>
+          <li style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+            <QrCode size={17} aria-hidden="true" />
+            <span>QR Code dinâmico personalizável em SVG e PNG</span>
+          </li>
+          <li style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+            <BarChart3 size={17} aria-hidden="true" />
+            <span>Registro de uso por dia, dispositivo, país e origem</span>
+          </li>
+        </ul>
+      </Tile>
+    </BentoGrid>
   );
 }

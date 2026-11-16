@@ -1,0 +1,48 @@
+:root {
+  color-scheme: light;
+
+  /* Surfaces */
+  --bg: #f5f5f4;
+  --surface: #ffffff;
+  --surface-muted: #fafaf9;
+  --border: #e7e5e4;
+  --border-strong: #a8a29e;
+
+  /* Typography colors */
+  --text: #1c1917;
+  --text-muted: #57534e;
+
+  /* Single primary brand accent (Indigo) */
+  --accent: #4f46e5;
+  --accent-hover: #4338ca;
+  --accent-soft: #eef2ff;
+  --on-accent: #ffffff;
+
+  /* Status colors (paired with icons/text) */
+  --success: #15803d;
+  --success-soft: #f0fdf4;
+  --success-border: #bbf7d0;
+  --danger: #b91c1c;
+  --danger-soft: #fef2f2;
+  --danger-border: #fecaca;
+  --warning: #a16207;
+  --warning-soft: #fefce8;
+  --warning-border: #fde68a;
+
+  /* Shape & elevation */
+  --radius-tile: 1.25rem;
+  --radius-control: 0.75rem;
+  --radius-pill: 999px;
+  --shadow-tile: 0 1px 2px rgb(28 25 23 / 0.04), 0 1px 1px rgb(28 25 23 / 0.03);
+  --shadow-dialog: 0 20px 45px rgb(28 25 23 / 0.14);
+
+  /* Spacing & grid */
+  --gap: clamp(0.75rem, 0.5rem + 0.8vw, 1rem);
+  --container-max: 72rem;
+
+  /* Typography */
+  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --fs-display: clamp(1.75rem, 1.35rem + 1.5vw, 2.5rem);
+  --fs-h1: clamp(1.4rem, 1.15rem + 0.9vw, 1.85rem);
+}

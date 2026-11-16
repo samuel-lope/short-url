@@ -1,7 +1,8 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './app/App.tsx';
-import './styles/y2k.css';
+import './styles/tokens.css';
+import './styles/bento.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

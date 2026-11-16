@@ -1,4 +1,6 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react';
+import { X } from 'lucide-react';
+import { Button } from './ui/index.ts';
 
 interface ModalProps {
   open: boolean;
@@ -67,25 +69,19 @@ export function Modal({ open, title, onClose, children, lightDismiss = true }: M
   return (
     <dialog
       ref={dialogRef}
-      className="y2k-dialog"
+      className="bento-dialog"
       aria-labelledby={titleId}
       {...(lightDismiss ? ({ closedby: 'any' } as Record<string, string>) : {})}
     >
-      <div className="y2k-titlebar">
-        <h2 id={titleId} style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800 }}>
+      <div className="dialog-header">
+        <h2 id={titleId} className="dialog-title">
           {title}
         </h2>
-        <button
-          type="button"
-          className="y2k-win-glyph"
-          style={{ cursor: 'pointer' }}
-          onClick={onClose}
-          aria-label="Fechar janela"
-        >
-          ×
-        </button>
+        <Button variant="ghost" size="sm" onClick={onClose} aria-label="Fechar janela">
+          <X size={18} aria-hidden="true" />
+        </Button>
       </div>
-      <div style={{ padding: '1.35rem' }}>{children}</div>
+      {children}
     </dialog>
   );
 }

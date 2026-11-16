@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
+import { BarChart3, Link2, QrCode, Users } from 'lucide-react';
 import { apiRequest } from '../../lib/api.ts';
 import { FeatureGate, LockedFeatureNotice } from '../../shared/FeatureGate.tsx';
+import { Alert, Badge, BentoGrid, Skeleton, StatTile, Tile } from '../../shared/ui/index.ts';
 
 interface AnalyticsData {
   link: { id: number; shortCode: string; title: string | null; totalClicks: number };
@@ -27,25 +29,38 @@ interface AnalyticsData {
   } | null;
 }
 
-function BreakdownBars({ title, items }: { title: string; items: Array<{ label: string; count: number }> }) {
+function BreakdownTile({
+  title,
+  items,
+  c = 1,
+}: {
+  title: string;
+  items: Array<{ label: string; count: number }>;
+  c?: 1 | 2 | 4;
+}) {
   const max = Math.max(1, ...items.map((i) => i.count));
   return (
-    <div className="y2k-card-sm">
-      <h3 style={{ margin: '0 0 0.75rem', fontSize: '0.95rem', fontWeight: 900, textTransform: 'uppercase' }}>{title}</h3>
+    <Tile c={c} title={title}>
       {items.length === 0 ? (
-        <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>Sem registros ainda.</div>
+        <div className="text-muted" style={{ fontSize: '0.86rem' }}>
+          Sem registros ainda.
+        </div>
       ) : (
-        items.map((item) => (
-          <div key={item.label} className="bar-row">
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.label}</span>
-            <div className="bar-track">
-              <div className="bar-fill" style={{ width: `${Math.round((item.count / max) * 100)}%` }} />
+        <div>
+          {items.map((item) => (
+            <div key={item.label} className="bar-row">
+              <span className="bar-label" title={item.label}>
+                {item.label}
+              </span>
+              <div className="bar-track">
+                <div className="bar-fill" style={{ width: `${Math.round((item.count / max) * 100)}%` }} />
+              </div>
+              <strong>{item.count}</strong>
             </div>
-            <strong style={{ textAlign: 'right' }}>{item.count}</strong>
-          </div>
-        ))
+          ))}
+        </div>
       )}
-    </div>
+    </Tile>
   );
 }
 
@@ -80,42 +95,45 @@ export function LinkAnalyticsPanel({ linkId }: { linkId: number }) {
       fallback={<LockedFeatureNotice feature="analytics.basic" title="Registro de Uso bloqueado" />}
     >
       {loading ? (
-        <div className="y2k-card-sm">Carregando métricas...</div>
+        <Tile c={4}>
+          <Skeleton rows={4} />
+        </Tile>
       ) : error ? (
-        <div className="alert-error" role="alert">
-          {error}
-        </div>
+        <Alert tone="error">{error}</Alert>
       ) : data ? (
-        <div style={{ display: 'grid', gap: '1.25rem' }}>
-          <div className="stats-grid">
-            <div className="y2k-card-sm">
-              <div className="stat-label">Cliques Totais</div>
-              <div className="stat-value">{data.link.totalClicks}</div>
-            </div>
-            <div className="y2k-card-sm">
-              <div className="stat-label">Visitantes Únicos (Dia)</div>
-              <div className="stat-value">{data.totals?.uniqueVisitors ?? 0}</div>
-            </div>
-            <div className="y2k-card-sm">
-              <div className="stat-label">Cliques por Link</div>
-              <div className="stat-value">{data.totals?.linkClicks ?? 0}</div>
-            </div>
-            <div className="y2k-card-sm y2k-card-mint">
-              <div className="stat-label">Scans de QR Code</div>
-              <div className="stat-value">{data.totals?.qrScans ?? 0}</div>
-            </div>
-          </div>
+        <BentoGrid cols={4} label="Registro de uso">
+          <StatTile
+            label="Cliques totais"
+            value={data.link.totalClicks}
+            icon={<BarChart3 size={16} aria-hidden="true" />}
+          />
+          <StatTile
+            label="Visitantes únicos (dia)"
+            value={data.totals?.uniqueVisitors ?? 0}
+            icon={<Users size={16} aria-hidden="true" />}
+          />
+          <StatTile
+            label="Cliques por link"
+            value={data.totals?.linkClicks ?? 0}
+            icon={<Link2 size={16} aria-hidden="true" />}
+          />
+          <StatTile
+            label="Scans de QR Code"
+            value={data.totals?.qrScans ?? 0}
+            variant="accent"
+            icon={<QrCode size={16} aria-hidden="true" />}
+          />
 
-          <div className="split-grid">
-            <BreakdownBars
-              title="Acessos por Dia (30 dias)"
-              items={data.dailySeries.map((d) => ({ label: d.day, count: d.total }))}
-            />
-            <BreakdownBars
-              title="Acessos por Destino Dinâmico"
-              items={data.byTarget.map((t) => ({ label: t.label, count: t.clicksCount }))}
-            />
-          </div>
+          <BreakdownTile
+            c={2}
+            title="Acessos por dia (30 dias)"
+            items={data.dailySeries.map((d) => ({ label: d.day, count: d.total }))}
+          />
+          <BreakdownTile
+            c={2}
+            title="Acessos por destino dinâmico"
+            items={data.byTarget.map((t) => ({ label: t.label, count: t.clicksCount }))}
+          />
 
           {data.detailedLocked ? (
             <LockedFeatureNotice
@@ -126,19 +144,14 @@ export function LinkAnalyticsPanel({ linkId }: { linkId: number }) {
           ) : (
             data.detailed && (
               <>
-                <div className="split-grid">
-                  <BreakdownBars title="Países" items={data.detailed.byCountry} />
-                  <BreakdownBars title="Dispositivos" items={data.detailed.byDevice} />
-                  <BreakdownBars title="Sistemas Operacionais" items={data.detailed.byOs} />
-                  <BreakdownBars title="Origens (Referer)" items={data.detailed.byReferer} />
-                </div>
+                <BreakdownTile title="Países" items={data.detailed.byCountry} />
+                <BreakdownTile title="Dispositivos" items={data.detailed.byDevice} />
+                <BreakdownTile title="Sistemas" items={data.detailed.byOs} />
+                <BreakdownTile title="Origens" items={data.detailed.byReferer} />
 
-                <div className="y2k-card-sm">
-                  <h3 style={{ margin: '0 0 0.75rem', fontSize: '0.95rem', fontWeight: 900, textTransform: 'uppercase' }}>
-                    Últimos Acessos Registrados
-                  </h3>
+                <Tile c={4} title="Últimos acessos registrados">
                   <div tabIndex={0} role="region" aria-label="Últimos acessos" className="table-wrapper">
-                    <table className="y2k-table">
+                    <table className="bento-table">
                       <thead>
                         <tr>
                           <th>Data</th>
@@ -153,7 +166,7 @@ export function LinkAnalyticsPanel({ linkId }: { linkId: number }) {
                           <tr key={ev.id}>
                             <td data-label="Data">{new Date(ev.clickedAt * 1000).toLocaleString('pt-BR')}</td>
                             <td data-label="Origem">
-                              <span className={`tag ${ev.source === 'qr' ? 'tag-mint' : 'tag-muted'}`}>{ev.source}</span>
+                              <Badge tone={ev.source === 'qr' ? 'accent' : 'neutral'}>{ev.source}</Badge>
                             </td>
                             <td data-label="País">{ev.country ?? '—'}</td>
                             <td data-label="Dispositivo / OS">
@@ -165,11 +178,11 @@ export function LinkAnalyticsPanel({ linkId }: { linkId: number }) {
                       </tbody>
                     </table>
                   </div>
-                </div>
+                </Tile>
               </>
             )
           )}
-        </div>
+        </BentoGrid>
       ) : null}
     </FeatureGate>
   );

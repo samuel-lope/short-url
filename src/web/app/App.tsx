@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider, useAuth } from './AuthContext.tsx';
 import { Layout } from '../shared/Layout.tsx';
+import { Skeleton, Tile } from '../shared/ui/index.ts';
 import { PublicHomePage } from '../features/shortener/PublicHomePage.tsx';
 import { AuthPage } from '../features/auth/AuthPage.tsx';
 import { DashboardPage } from '../features/dashboard/DashboardPage.tsx';
@@ -10,7 +11,13 @@ import { AdminPage } from '../features/admin/AdminPage.tsx';
 
 function ProtectedRoute({ children, adminOnly = false }: { children: ReactNode; adminOnly?: boolean }) {
   const { user, loading, hasFeature } = useAuth();
-  if (loading) return <div className="y2k-card-sm">Carregando sessão...</div>;
+  if (loading) {
+    return (
+      <Tile c={4}>
+        <Skeleton rows={3} />
+      </Tile>
+    );
+  }
   if (!user) return <Navigate to="/login" replace />;
   const isAdmin = user.role === 'admin' || user.plan.hasFullAccess || hasFeature('admin.profiles');
   if (adminOnly && !isAdmin) return <Navigate to="/app" replace />;

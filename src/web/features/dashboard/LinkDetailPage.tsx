@@ -1,9 +1,18 @@
 import { useCallback, useEffect, useState, type KeyboardEvent } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, BarChart3, ExternalLink, QrCode, Shuffle, Trash2 } from 'lucide-react';
 import { apiRequest } from '../../lib/api.ts';
 import { CopyButton } from '../../shared/CopyButton.tsx';
 import { Modal } from '../../shared/Modal.tsx';
+import {
+  Alert,
+  Badge,
+  BentoGrid,
+  Button,
+  ButtonLink,
+  Skeleton,
+  Tile,
+} from '../../shared/ui/index.ts';
 import { DynamicTargetsPanel, type LinkTargetItem } from '../dynamic-links/DynamicTargetsPanel.tsx';
 import { DynamicQrPanel } from '../qr-codes/DynamicQrPanel.tsx';
 import { LinkAnalyticsPanel } from '../analytics/LinkAnalyticsPanel.tsx';
@@ -31,7 +40,6 @@ interface LinkDetailResponse {
 }
 
 type TabKey = 'targets' | 'qr' | 'analytics';
-
 const TAB_KEYS: TabKey[] = ['targets', 'qr', 'analytics'];
 
 export function LinkDetailPage() {
@@ -94,166 +102,169 @@ export function LinkDetailPage() {
     }
   };
 
-  if (loading) return <div className="y2k-card-sm">Carregando detalhes...</div>;
-  if (error || !data) {
+  if (loading) {
     return (
-      <div className="alert-error" role="alert">
-        {error ?? 'Link não encontrado.'}
-      </div>
+      <Tile c={4}>
+        <Skeleton rows={4} />
+      </Tile>
     );
+  }
+  if (error || !data) {
+    return <Alert tone="error">{error ?? 'Link não encontrado.'}</Alert>;
   }
 
   return (
     <div style={{ display: 'grid', gap: '1.25rem' }}>
       <div>
-        <Link to="/app" className="y2k-btn y2k-btn-sm">
+        <ButtonLink to="/app" variant="ghost" size="sm">
           <ArrowLeft size={15} aria-hidden="true" />
           <span>Voltar ao Painel</span>
-        </Link>
+        </ButtonLink>
       </div>
 
-      <section className="y2k-window" aria-labelledby="link-detail-title">
-        <div className="y2k-titlebar">
-          <span>LINK_PROPS.EXE — /{data.link.shortCode}</span>
-          <span className="y2k-titlebar-dots" aria-hidden="true">
-            <span className="y2k-win-glyph">_</span>
-            <span className="y2k-win-glyph">□</span>
-          </span>
-        </div>
+      <BentoGrid cols={4} label="Detalhes do link">
+        <Tile c={3} as="section" aria-labelledby="link-detail-title">
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem' }}>
+            <Badge tone={data.link.mode === 'dynamic' ? 'accent' : 'neutral'}>
+              {data.link.mode === 'dynamic' ? 'URL Dinâmica' : 'URL Estática'}
+            </Badge>
+            <Badge tone={data.link.isActive ? 'success' : 'danger'}>
+              {data.link.isActive ? 'Ativo' : 'Pausado'}
+            </Badge>
+            <Badge>{data.link.totalClicks} cliques</Badge>
+          </div>
 
-        <div className="y2k-window-body" style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
-          <div style={{ minWidth: 0, flex: '1 1 300px' }}>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem', marginBottom: '0.5rem' }}>
-              <span className={`tag ${data.link.mode === 'dynamic' ? 'tag-purple' : 'tag-muted'}`}>
-                {data.link.mode === 'dynamic' ? 'URL Dinâmica' : 'URL Estática'}
-              </span>
-              <span className={`tag ${data.link.isActive ? 'tag-mint' : 'tag-red'}`}>
-                {data.link.isActive ? 'Ativo' : 'Pausado'}
-              </span>
-              <span className="tag">{data.link.totalClicks} cliques</span>
-            </div>
-
-            <h1 id="link-detail-title" className="page-title" style={{ marginBottom: '0.5rem' }}>
+          <div>
+            <h1 id="link-detail-title" className="page-title">
               {data.link.title || data.link.shortCode}
             </h1>
-
-            <div className="mono-url" style={{ fontWeight: 900, fontSize: '1.02rem', marginBottom: '0.35rem' }}>
+            <div className="mono-url" style={{ fontWeight: 600, fontSize: '1.05rem', marginTop: '0.45rem' }}>
               <a href={data.link.shortUrl} target="_blank" rel="noreferrer">
                 {data.link.shortUrl} <ExternalLink size={14} aria-hidden="true" />
               </a>
             </div>
-            <div className="mono-url" style={{ fontSize: '0.84rem', color: 'var(--muted)' }}>
+            <div className="mono-url text-muted" style={{ fontSize: '0.84rem', marginTop: '0.2rem' }}>
               Fallback padrão: {data.link.longUrl}
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: 'auto' }}>
             <CopyButton text={data.link.shortUrl} label="Copiar URL" />
-            <button type="button" className="y2k-btn y2k-btn-sm" onClick={handleToggleActive}>
+            <Button size="sm" onClick={handleToggleActive}>
               {data.link.isActive ? 'Pausar Link' : 'Reativar Link'}
-            </button>
-            <button
-              type="button"
-              className="y2k-btn y2k-btn-sm y2k-btn-danger"
-              onClick={() => setConfirmDeleteOpen(true)}
-            >
+            </Button>
+            <Button variant="danger" size="sm" onClick={() => setConfirmDeleteOpen(true)}>
               <Trash2 size={15} aria-hidden="true" />
               <span>Excluir</span>
+            </Button>
+          </div>
+        </Tile>
+
+        <Tile
+          c={1}
+          variant="muted"
+          title="QR & Destinos"
+          subtitle={`${data.targets.length} destino(s) configurado(s)`}
+        >
+          <div style={{ fontSize: '0.9rem' }}>
+            <div>
+              Scans QR: <strong>{data.qrCode?.scanCount ?? 0}</strong>
+            </div>
+          </div>
+          <div style={{ marginTop: 'auto' }}>
+            <Button size="sm" onClick={() => setActiveTab('qr')}>
+              <QrCode size={15} aria-hidden="true" />
+              <span>Abrir QR Code</span>
+            </Button>
+          </div>
+        </Tile>
+
+        <Tile c={4}>
+          <div role="tablist" aria-label="Gerenciamento do link" className="tablist">
+            <button
+              id="tab-targets"
+              type="button"
+              role="tab"
+              className="tab-btn"
+              aria-selected={activeTab === 'targets'}
+              tabIndex={activeTab === 'targets' ? 0 : -1}
+              onClick={() => setActiveTab('targets')}
+              onKeyDown={(e) => handleTabKeyDown(e, 0)}
+            >
+              <Shuffle size={15} aria-hidden="true" />
+              <span>Destinos Dinâmicos</span>
+            </button>
+
+            <button
+              id="tab-qr"
+              type="button"
+              role="tab"
+              className="tab-btn"
+              aria-selected={activeTab === 'qr'}
+              tabIndex={activeTab === 'qr' ? 0 : -1}
+              onClick={() => setActiveTab('qr')}
+              onKeyDown={(e) => handleTabKeyDown(e, 1)}
+            >
+              <QrCode size={15} aria-hidden="true" />
+              <span>QR Code Dinâmico</span>
+            </button>
+
+            <button
+              id="tab-analytics"
+              type="button"
+              role="tab"
+              className="tab-btn"
+              aria-selected={activeTab === 'analytics'}
+              tabIndex={activeTab === 'analytics' ? 0 : -1}
+              onClick={() => setActiveTab('analytics')}
+              onKeyDown={(e) => handleTabKeyDown(e, 2)}
+            >
+              <BarChart3 size={15} aria-hidden="true" />
+              <span>Registro de Uso</span>
             </button>
           </div>
-        </div>
-      </section>
 
-      <div className="y2k-card">
-        <div role="tablist" aria-label="Gerenciamento do link" className="tablist">
-          <button
-            id="tab-targets"
-            type="button"
-            role="tab"
-            className="tab-btn"
-            aria-selected={activeTab === 'targets'}
-            tabIndex={activeTab === 'targets' ? 0 : -1}
-            onClick={() => setActiveTab('targets')}
-            onKeyDown={(e) => handleTabKeyDown(e, 0)}
-          >
-            <Shuffle size={15} aria-hidden="true" style={{ verticalAlign: 'middle', marginRight: 6 }} />
-            Destinos Dinâmicos
-          </button>
+          <div role="tabpanel" aria-labelledby="tab-targets" hidden={activeTab !== 'targets'}>
+            {activeTab === 'targets' && (
+              <DynamicTargetsPanel
+                linkId={data.link.id}
+                mode={data.link.mode}
+                activeTargetId={data.link.activeTargetId}
+                targets={data.targets}
+                onRefresh={loadDetail}
+              />
+            )}
+          </div>
 
-          <button
-            id="tab-qr"
-            type="button"
-            role="tab"
-            className="tab-btn"
-            aria-selected={activeTab === 'qr'}
-            tabIndex={activeTab === 'qr' ? 0 : -1}
-            onClick={() => setActiveTab('qr')}
-            onKeyDown={(e) => handleTabKeyDown(e, 1)}
-          >
-            <QrCode size={15} aria-hidden="true" style={{ verticalAlign: 'middle', marginRight: 6 }} />
-            QR Code Dinâmico
-          </button>
+          <div role="tabpanel" aria-labelledby="tab-qr" hidden={activeTab !== 'qr'}>
+            {activeTab === 'qr' && (
+              <DynamicQrPanel
+                linkId={data.link.id}
+                qrUrl={data.link.qrUrl}
+                shortCode={data.link.shortCode}
+                initialQr={data.qrCode}
+                onSaved={loadDetail}
+              />
+            )}
+          </div>
 
-          <button
-            id="tab-analytics"
-            type="button"
-            role="tab"
-            className="tab-btn"
-            aria-selected={activeTab === 'analytics'}
-            tabIndex={activeTab === 'analytics' ? 0 : -1}
-            onClick={() => setActiveTab('analytics')}
-            onKeyDown={(e) => handleTabKeyDown(e, 2)}
-          >
-            <BarChart3 size={15} aria-hidden="true" style={{ verticalAlign: 'middle', marginRight: 6 }} />
-            Registro de Uso
-          </button>
-        </div>
+          <div role="tabpanel" aria-labelledby="tab-analytics" hidden={activeTab !== 'analytics'}>
+            {activeTab === 'analytics' && <LinkAnalyticsPanel linkId={data.link.id} />}
+          </div>
+        </Tile>
+      </BentoGrid>
 
-        <div role="tabpanel" aria-labelledby="tab-targets" hidden={activeTab !== 'targets'}>
-          {activeTab === 'targets' && (
-            <DynamicTargetsPanel
-              linkId={data.link.id}
-              mode={data.link.mode}
-              activeTargetId={data.link.activeTargetId}
-              targets={data.targets}
-              onRefresh={loadDetail}
-            />
-          )}
-        </div>
-
-        <div role="tabpanel" aria-labelledby="tab-qr" hidden={activeTab !== 'qr'}>
-          {activeTab === 'qr' && (
-            <DynamicQrPanel
-              linkId={data.link.id}
-              qrUrl={data.link.qrUrl}
-              shortCode={data.link.shortCode}
-              initialQr={data.qrCode}
-              onSaved={loadDetail}
-            />
-          )}
-        </div>
-
-        <div role="tabpanel" aria-labelledby="tab-analytics" hidden={activeTab !== 'analytics'}>
-          {activeTab === 'analytics' && <LinkAnalyticsPanel linkId={data.link.id} />}
-        </div>
-      </div>
-
-      <Modal open={confirmDeleteOpen} title="Excluir Link?" onClose={() => setConfirmDeleteOpen(false)}>
+      <Modal open={confirmDeleteOpen} title="Excluir link?" onClose={() => setConfirmDeleteOpen(false)}>
         <p style={{ marginTop: 0 }}>
-          Esta ação apagará permanentemente o link <strong>{data.link.shortUrl}</strong>, seus destinos dinâmicos, QR Code e histórico de uso.
+          Esta ação apagará permanentemente o link <strong className="mono-url">{data.link.shortUrl}</strong>, seus destinos dinâmicos, QR Code e histórico de uso.
         </p>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.6rem' }}>
-          <button
-            type="button"
-            className="y2k-btn y2k-btn-sm"
-            autoFocus
-            onClick={() => setConfirmDeleteOpen(false)}
-          >
+          <Button size="sm" autoFocus onClick={() => setConfirmDeleteOpen(false)}>
             Cancelar
-          </button>
-          <button type="button" className="y2k-btn y2k-btn-sm y2k-btn-danger" onClick={handleDelete}>
+          </Button>
+          <Button variant="danger" size="sm" onClick={handleDelete}>
             Confirmar exclusão
-          </button>
+          </Button>
         </div>
       </Modal>
     </div>
