@@ -30,7 +30,7 @@ interface AnalyticsData {
 function BreakdownBars({ title, items }: { title: string; items: Array<{ label: string; count: number }> }) {
   const max = Math.max(1, ...items.map((i) => i.count));
   return (
-    <div className="neo-card-sm">
+    <div className="y2k-card-sm">
       <h3 style={{ margin: '0 0 0.75rem', fontSize: '0.95rem', fontWeight: 900, textTransform: 'uppercase' }}>{title}</h3>
       {items.length === 0 ? (
         <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>Sem registros ainda.</div>
@@ -80,7 +80,7 @@ export function LinkAnalyticsPanel({ linkId }: { linkId: number }) {
       fallback={<LockedFeatureNotice feature="analytics.basic" title="Registro de Uso bloqueado" />}
     >
       {loading ? (
-        <div className="neo-card-sm">Carregando métricas...</div>
+        <div className="y2k-card-sm">Carregando métricas...</div>
       ) : error ? (
         <div className="alert-error" role="alert">
           {error}
@@ -88,19 +88,19 @@ export function LinkAnalyticsPanel({ linkId }: { linkId: number }) {
       ) : data ? (
         <div style={{ display: 'grid', gap: '1.25rem' }}>
           <div className="stats-grid">
-            <div className="neo-card-sm">
+            <div className="y2k-card-sm">
               <div className="stat-label">Cliques Totais</div>
               <div className="stat-value">{data.link.totalClicks}</div>
             </div>
-            <div className="neo-card-sm">
+            <div className="y2k-card-sm">
               <div className="stat-label">Visitantes Únicos (Dia)</div>
               <div className="stat-value">{data.totals?.uniqueVisitors ?? 0}</div>
             </div>
-            <div className="neo-card-sm">
+            <div className="y2k-card-sm">
               <div className="stat-label">Cliques por Link</div>
               <div className="stat-value">{data.totals?.linkClicks ?? 0}</div>
             </div>
-            <div className="neo-card-sm neo-card-mint">
+            <div className="y2k-card-sm y2k-card-mint">
               <div className="stat-label">Scans de QR Code</div>
               <div className="stat-value">{data.totals?.qrScans ?? 0}</div>
             </div>
@@ -133,12 +133,12 @@ export function LinkAnalyticsPanel({ linkId }: { linkId: number }) {
                   <BreakdownBars title="Origens (Referer)" items={data.detailed.byReferer} />
                 </div>
 
-                <div className="neo-card-sm">
+                <div className="y2k-card-sm">
                   <h3 style={{ margin: '0 0 0.75rem', fontSize: '0.95rem', fontWeight: 900, textTransform: 'uppercase' }}>
                     Últimos Acessos Registrados
                   </h3>
                   <div tabIndex={0} role="region" aria-label="Últimos acessos" className="table-wrapper">
-                    <table className="neo-table">
+                    <table className="y2k-table">
                       <thead>
                         <tr>
                           <th>Data</th>

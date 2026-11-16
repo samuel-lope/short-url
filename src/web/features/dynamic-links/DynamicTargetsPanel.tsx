@@ -145,7 +145,7 @@ export function DynamicTargetsPanel({ linkId, mode, activeTargetId, targets, onR
           </h2>
 
           {targets.length === 0 ? (
-            <div className="neo-card-sm">Nenhum destino dinâmico cadastrado ainda. Adicione o primeiro abaixo.</div>
+            <div className="y2k-card-sm">Nenhum destino dinâmico cadastrado ainda. Adicione o primeiro abaixo.</div>
           ) : (
             <div style={{ display: 'grid', gap: '0.85rem' }}>
               {targets.map((target) => {
@@ -153,7 +153,7 @@ export function DynamicTargetsPanel({ linkId, mode, activeTargetId, targets, onR
                 return (
                   <div
                     key={target.id}
-                    className={`neo-card-sm ${isSelected ? 'neo-card-mint' : ''}`}
+                    className={`y2k-card-sm ${isSelected ? 'y2k-card-mint' : ''}`}
                     style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '0.85rem' }}
                   >
                     <div style={{ minWidth: 0, flex: '1 1 260px' }}>
@@ -168,7 +168,7 @@ export function DynamicTargetsPanel({ linkId, mode, activeTargetId, targets, onR
                         )}
                         <span className="tag">{target.clicksCount} cliques</span>
                       </div>
-                      <div style={{ fontSize: '0.88rem', wordBreak: 'break-all' }}>{target.targetUrl}</div>
+                      <div className="mono-url" style={{ fontSize: '0.86rem' }}>{target.targetUrl}</div>
                       {target.ruleConfig && (
                         <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: '0.25rem' }}>
                           Regra: {JSON.stringify(target.ruleConfig)} (prioridade {target.priority})
@@ -180,7 +180,7 @@ export function DynamicTargetsPanel({ linkId, mode, activeTargetId, targets, onR
                       {target.ruleType === 'manual' && !isSelected && (
                         <button
                           type="button"
-                          className="neo-btn neo-btn-sm neo-btn-yellow"
+                          className="y2k-btn y2k-btn-sm y2k-btn-yellow"
                           disabled={busyId === target.id}
                           onClick={() => handleActivate(target.id)}
                         >
@@ -190,7 +190,7 @@ export function DynamicTargetsPanel({ linkId, mode, activeTargetId, targets, onR
                       )}
                       <button
                         type="button"
-                        className="neo-btn neo-btn-sm neo-btn-danger"
+                        className="y2k-btn y2k-btn-sm y2k-btn-danger"
                         disabled={busyId === target.id}
                         aria-label={`Remover destino ${target.label}`}
                         onClick={() => handleDelete(target.id)}
@@ -205,7 +205,7 @@ export function DynamicTargetsPanel({ linkId, mode, activeTargetId, targets, onR
           )}
         </section>
 
-        <section className="neo-card-sm" aria-labelledby="add-target-heading">
+        <section className="y2k-card-sm" aria-labelledby="add-target-heading">
           <h2 id="add-target-heading" style={{ margin: '0 0 1rem', fontSize: '1.05rem', fontWeight: 900, textTransform: 'uppercase' }}>
             Adicionar Novo Destino
           </h2>
@@ -220,7 +220,7 @@ export function DynamicTargetsPanel({ linkId, mode, activeTargetId, targets, onR
                   id="target-label"
                   name="label"
                   type="text"
-                  className="neo-input"
+                  className="y2k-input"
                   placeholder="Ex: Loja iOS / Campanha B"
                   required
                   value={label}
@@ -236,7 +236,7 @@ export function DynamicTargetsPanel({ linkId, mode, activeTargetId, targets, onR
                   id="target-url"
                   name="targetUrl"
                   type="url"
-                  className="neo-input"
+                  className="y2k-input"
                   placeholder="https://destino.com/oferta"
                   required
                   value={targetUrl}
@@ -253,7 +253,7 @@ export function DynamicTargetsPanel({ linkId, mode, activeTargetId, targets, onR
                 <select
                   id="target-rule-type"
                   name="ruleType"
-                  className="neo-select"
+                  className="y2k-select"
                   value={ruleType}
                   onChange={(e) => setRuleType(e.target.value as RuleType)}
                 >
@@ -276,7 +276,7 @@ export function DynamicTargetsPanel({ linkId, mode, activeTargetId, targets, onR
                     type="number"
                     min={0}
                     max={999}
-                    className="neo-input"
+                    className="y2k-input"
                     value={priority}
                     onChange={(e) => setPriority(Number(e.target.value))}
                   />
@@ -304,7 +304,7 @@ export function DynamicTargetsPanel({ linkId, mode, activeTargetId, targets, onR
             )}
 
             {ruleType === 'device' && (
-              <fieldset style={{ border: '2px solid var(--ink)', padding: '0.75rem' }}>
+              <fieldset style={{ border: '2px solid var(--bevel-mid)', borderRadius: 6, padding: '0.75rem' }}>
                 <legend className="field-label">Dispositivos</legend>
                 <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginTop: '0.35rem' }}>
                   {(['mobile', 'tablet', 'desktop'] as const).map((d) => (
@@ -318,7 +318,7 @@ export function DynamicTargetsPanel({ linkId, mode, activeTargetId, targets, onR
             )}
 
             {ruleType === 'os' && (
-              <fieldset style={{ border: '2px solid var(--ink)', padding: '0.75rem' }}>
+              <fieldset style={{ border: '2px solid var(--bevel-mid)', borderRadius: 6, padding: '0.75rem' }}>
                 <legend className="field-label">Sistemas Operacionais</legend>
                 <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginTop: '0.35rem' }}>
                   {(['iOS', 'Android', 'Windows', 'macOS', 'Linux'] as const).map((os) => (
@@ -339,7 +339,7 @@ export function DynamicTargetsPanel({ linkId, mode, activeTargetId, targets, onR
                 <input
                   id="geo-countries"
                   type="text"
-                  className="neo-input"
+                  className="y2k-input"
                   value={countriesRaw}
                   onChange={(e) => setCountriesRaw(e.target.value)}
                 />
@@ -356,14 +356,14 @@ export function DynamicTargetsPanel({ linkId, mode, activeTargetId, targets, onR
                   type="number"
                   min={1}
                   max={100}
-                  className="neo-input"
+                  className="y2k-input"
                   value={weight}
                   onChange={(e) => setWeight(Number(e.target.value))}
                 />
               </div>
             )}
 
-            <button type="submit" className="neo-btn neo-btn-primary" disabled={submitting}>
+            <button type="submit" className="y2k-btn y2k-btn-primary" disabled={submitting}>
               <Plus size={18} aria-hidden="true" />
               <span>{submitting ? 'Salvando...' : 'Adicionar destino'}</span>
             </button>

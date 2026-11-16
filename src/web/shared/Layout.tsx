@@ -17,7 +17,7 @@ export function Layout() {
       <header className="topbar">
         <Link to="/" className="brand">
           <span>SHORT API</span>
-          <span className="brand-badge">v2</span>
+          <span className="brand-badge">Y2K·v2</span>
         </Link>
 
         <nav className="nav-links" aria-label="Navegação principal">
@@ -40,10 +40,10 @@ export function Layout() {
                   <span>Admin</span>
                 </NavLink>
               )}
-              <span className="tag tag-purple" title={`Plano ${user.plan.name}`}>
+              <span className="tag tag-purple" title={`Perfil ${user.plan.name}`}>
                 {user.name} · {user.plan.name}
               </span>
-              <button type="button" className="neo-btn neo-btn-sm" onClick={handleLogout}>
+              <button type="button" className="y2k-btn y2k-btn-sm" onClick={handleLogout}>
                 <LogOut size={15} aria-hidden="true" />
                 <span>Sair</span>
               </button>
@@ -53,7 +53,7 @@ export function Layout() {
               <NavLink to="/login" className="nav-link">
                 Entrar
               </NavLink>
-              <NavLink to="/register" className="nav-link" style={{ background: 'var(--accent-mint)' }}>
+              <NavLink to="/register" className="nav-link" style={{ background: 'linear-gradient(180deg, #d7ffea 0%, #7ef5b5 100%)', color: '#04381b' }}>
                 Criar conta
               </NavLink>
             </>
@@ -64,6 +64,11 @@ export function Layout() {
       <main className="main-container">
         <Outlet />
       </main>
+
+      <footer className="y2k-statusbar">
+        <span>STATUS: ONLINE · CLOUDFLARE EDGE D1</span>
+        <span>PERFIL ATUAL: {user ? user.plan.name.toUpperCase() : 'ANÔNIMO'}</span>
+      </footer>
     </div>
   );
 }

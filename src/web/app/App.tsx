@@ -10,7 +10,7 @@ import { AdminPage } from '../features/admin/AdminPage.tsx';
 
 function ProtectedRoute({ children, adminOnly = false }: { children: ReactNode; adminOnly?: boolean }) {
   const { user, loading, hasFeature } = useAuth();
-  if (loading) return <div className="neo-card-sm">Carregando sessão...</div>;
+  if (loading) return <div className="y2k-card-sm">Carregando sessão...</div>;
   if (!user) return <Navigate to="/login" replace />;
   const isAdmin = user.role === 'admin' || user.plan.hasFullAccess || hasFeature('admin.profiles');
   if (adminOnly && !isAdmin) return <Navigate to="/app" replace />;

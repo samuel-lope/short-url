@@ -203,16 +203,16 @@ export function AdminPage() {
     }
   };
 
-  if (loading) return <div className="neo-card-sm">Carregando console administrativo...</div>;
+  if (loading) return <div className="y2k-card-sm">Carregando console administrativo...</div>;
   if (!data) return null;
 
   const assignableProfiles = data.plans.filter((p) => p.slug !== 'anonymous');
 
   return (
     <div style={{ display: 'grid', gap: '1.75rem' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', color: '#ffffff' }}>
         <ShieldCheck size={28} aria-hidden="true" />
-        <h1 className="page-title" style={{ margin: 0, flex: 1 }}>
+        <h1 className="page-title" style={{ margin: 0, flex: 1, color: '#ffffff', borderBottomColor: 'rgba(255,255,255,0.35)' }}>
           Administração · Perfis de Acesso & Funcionalidades
         </h1>
       </div>
@@ -224,95 +224,100 @@ export function AdminPage() {
       )}
 
       {/* 1. Criar Novo Perfil de Acesso */}
-      <section className="neo-card-sm" aria-labelledby="create-profile-heading">
-        <h2
-          id="create-profile-heading"
-          style={{ margin: '0 0 1rem', fontSize: '1.05rem', fontWeight: 900, textTransform: 'uppercase' }}
-        >
-          Criar Novo Perfil de Acesso
-        </h2>
-        <form className="form-stack" onSubmit={handleCreateProfile}>
-          <div className="split-grid">
-            <div className="field">
-              <label htmlFor="profile-name" className="field-label">
-                Nome do Perfil
-              </label>
-              <input
-                id="profile-name"
-                type="text"
-                className="neo-input"
-                placeholder="ex: Parceiro / Marketing"
-                required
-                value={profileName}
-                onChange={(e) => setProfileName(e.target.value)}
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="profile-desc" className="field-label">
-                Descrição
-              </label>
-              <input
-                id="profile-desc"
-                type="text"
-                className="neo-input"
-                placeholder="Quem pode usar este perfil e o que libera"
-                value={profileDesc}
-                onChange={(e) => setProfileDesc(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', fontWeight: 800, cursor: 'pointer' }}>
-            <input
-              type="checkbox"
-              checked={profileFullAccess}
-              onChange={(e) => setProfileFullAccess(e.target.checked)}
-            />
-            <span>Acesso Total (como Admin — libera todas as funcionalidades atuais e futuras)</span>
-          </label>
-
-          {!profileFullAccess && (
-            <fieldset style={{ border: '2px solid var(--ink)', padding: '0.75rem', margin: 0 }}>
-              <legend className="field-label">Funcionalidades Iniciais Liberadas</legend>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.85rem', marginTop: '0.45rem' }}>
-                {data.features.map((f) => (
-                  <label
-                    key={f.key}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.88rem' }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={profileFeatureKeys.includes(f.key)}
-                      onChange={() => toggleProfileInitialFeature(f.key)}
-                    />
-                    <span>
-                      <strong>{f.name}</strong> ({f.key})
-                    </span>
-                  </label>
-                ))}
+      <section className="y2k-window" aria-labelledby="create-profile-heading">
+        <div className="y2k-titlebar">
+          <h2 id="create-profile-heading" style={{ margin: 0, fontSize: '0.9rem', fontWeight: 800 }}>
+            PERFIS_DE_ACESSO.EXE — CRIAR NOVO PERFIL
+          </h2>
+          <span className="y2k-titlebar-dots" aria-hidden="true">
+            <span className="y2k-win-glyph">_</span>
+            <span className="y2k-win-glyph">□</span>
+          </span>
+        </div>
+        <div className="y2k-window-body">
+          <form className="form-stack" onSubmit={handleCreateProfile}>
+            <div className="split-grid">
+              <div className="field">
+                <label htmlFor="profile-name" className="field-label">
+                  Nome do Perfil
+                </label>
+                <input
+                  id="profile-name"
+                  type="text"
+                  className="y2k-input"
+                  placeholder="ex: Parceiro / Marketing"
+                  required
+                  value={profileName}
+                  onChange={(e) => setProfileName(e.target.value)}
+                />
               </div>
-            </fieldset>
-          )}
+              <div className="field">
+                <label htmlFor="profile-desc" className="field-label">
+                  Descrição
+                </label>
+                <input
+                  id="profile-desc"
+                  type="text"
+                  className="y2k-input"
+                  placeholder="Quem pode usar este perfil e o que libera"
+                  value={profileDesc}
+                  onChange={(e) => setProfileDesc(e.target.value)}
+                />
+              </div>
+            </div>
 
-          <div>
-            <button type="submit" className="neo-btn neo-btn-primary neo-btn-sm" disabled={creatingProfile}>
-              <Plus size={16} aria-hidden="true" />
-              <span>{creatingProfile ? 'Criando perfil...' : 'Criar Perfil de Acesso'}</span>
-            </button>
-          </div>
-        </form>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', fontWeight: 800, cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={profileFullAccess}
+                onChange={(e) => setProfileFullAccess(e.target.checked)}
+              />
+              <span>Acesso Total (como Admin — libera todas as funcionalidades atuais e futuras)</span>
+            </label>
+
+            {!profileFullAccess && (
+              <fieldset style={{ border: '2px solid var(--bevel-mid)', borderRadius: 6, padding: '0.75rem', margin: 0 }}>
+                <legend className="field-label">Funcionalidades Iniciais Liberadas</legend>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.85rem', marginTop: '0.45rem' }}>
+                  {data.features.map((f) => (
+                    <label
+                      key={f.key}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.88rem' }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={profileFeatureKeys.includes(f.key)}
+                        onChange={() => toggleProfileInitialFeature(f.key)}
+                      />
+                      <span>
+                        <strong>{f.name}</strong> ({f.key})
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            )}
+
+            <div>
+              <button type="submit" className="y2k-btn y2k-btn-primary y2k-btn-sm" disabled={creatingProfile}>
+                <Plus size={16} aria-hidden="true" />
+                <span>{creatingProfile ? 'Criando perfil...' : 'Criar Perfil de Acesso'}</span>
+              </button>
+            </div>
+          </form>
+        </div>
       </section>
 
       {/* 2. Matriz Perfil de Acesso x Funcionalidade */}
-      <section aria-labelledby="admin-plans-heading">
+      <section className="y2k-card" aria-labelledby="admin-plans-heading">
         <h2
           id="admin-plans-heading"
-          style={{ margin: '0 0 0.75rem', fontSize: '1.1rem', fontWeight: 900, textTransform: 'uppercase' }}
+          style={{ margin: '0 0 0.75rem', fontSize: '1.05rem', fontWeight: 900, textTransform: 'uppercase' }}
         >
           Perfis de Acesso × Funcionalidades
         </h2>
         <div tabIndex={0} role="region" aria-labelledby="admin-plans-heading" className="table-wrapper">
-          <table className="neo-table">
+          <table className="y2k-table">
             <thead>
               <tr>
                 <th>Funcionalidade</th>
@@ -325,8 +330,8 @@ export function AdminPage() {
                       {!p.isSystem && (
                         <button
                           type="button"
-                          className="neo-btn neo-btn-sm neo-btn-danger"
-                          style={{ minHeight: 26, padding: '0 0.4rem', fontSize: '0.7rem' }}
+                          className="y2k-btn y2k-btn-sm y2k-btn-danger"
+                          style={{ minBlockSize: 28, padding: '0 0.45rem', fontSize: '0.72rem' }}
                           aria-label={`Excluir perfil ${p.name}`}
                           onClick={() => handleDeleteProfile(p.id)}
                         >
@@ -359,7 +364,7 @@ export function AdminPage() {
                       <td key={p.id} data-label={p.name}>
                         <button
                           type="button"
-                          className={`neo-btn neo-btn-sm ${isEnabled ? 'neo-btn-mint' : ''}`}
+                          className={`y2k-btn y2k-btn-sm ${isEnabled ? 'y2k-btn-mint' : ''}`}
                           onClick={() =>
                             handlePlanFeatureToggle(p.id, f.key, !isEnabled, pf?.limitValue ?? null)
                           }
@@ -378,15 +383,15 @@ export function AdminPage() {
       </section>
 
       {/* 3. Usuários e overrides individuais */}
-      <section aria-labelledby="admin-users-heading">
+      <section className="y2k-card" aria-labelledby="admin-users-heading">
         <h2
           id="admin-users-heading"
-          style={{ margin: '0 0 0.75rem', fontSize: '1.1rem', fontWeight: 900, textTransform: 'uppercase' }}
+          style={{ margin: '0 0 0.75rem', fontSize: '1.05rem', fontWeight: 900, textTransform: 'uppercase' }}
         >
           Usuários & Overrides Individuais
         </h2>
         <div tabIndex={0} role="region" aria-labelledby="admin-users-heading" className="table-wrapper">
-          <table className="neo-table">
+          <table className="y2k-table">
             <thead>
               <tr>
                 <th>Usuário</th>
@@ -409,8 +414,8 @@ export function AdminPage() {
                   <td data-label="Perfil de Acesso">
                     <select
                       aria-label={`Perfil de ${u.email}`}
-                      className="neo-select"
-                      style={{ minHeight: 40, padding: '0.35rem' }}
+                      className="y2k-select"
+                      style={{ minBlockSize: 40, padding: '0.35rem' }}
                       value={u.planId}
                       onChange={(e) => handleUserPlanChange(u.id, Number(e.target.value))}
                     >
@@ -428,16 +433,16 @@ export function AdminPage() {
                       <td key={f.key} data-label={f.key}>
                         <select
                           aria-label={`${f.key} para ${u.email}`}
-                          className="neo-select"
+                          className="y2k-select"
                           style={{
-                            minHeight: 38,
+                            minBlockSize: 38,
                             padding: '0.25rem 0.45rem',
                             background:
                               value === 'allow'
                                 ? 'var(--accent-mint)'
                                 : value === 'deny'
-                                  ? '#fecaca'
-                                  : '#fff',
+                                  ? '#ffe4e6'
+                                  : '#ffffff',
                           }}
                           value={value}
                           onChange={(e) =>
@@ -459,7 +464,7 @@ export function AdminPage() {
       </section>
 
       {/* 4. Registrar nova funcionalidade futura */}
-      <section className="neo-card-sm" aria-labelledby="new-feature-heading">
+      <section className="y2k-card-sm" aria-labelledby="new-feature-heading">
         <h2
           id="new-feature-heading"
           style={{ margin: '0 0 1rem', fontSize: '1.05rem', fontWeight: 900, textTransform: 'uppercase' }}
@@ -475,7 +480,7 @@ export function AdminPage() {
               <input
                 id="feat-key"
                 type="text"
-                className="neo-input"
+                className="y2k-input"
                 placeholder="ex: links.webhooks"
                 required
                 value={newKey}
@@ -489,7 +494,7 @@ export function AdminPage() {
               <input
                 id="feat-name"
                 type="text"
-                className="neo-input"
+                className="y2k-input"
                 placeholder="ex: Webhooks de Clique"
                 required
                 value={newName}
@@ -504,14 +509,14 @@ export function AdminPage() {
             <input
               id="feat-desc"
               type="text"
-              className="neo-input"
+              className="y2k-input"
               placeholder="Descrição da funcionalidade"
               value={newDesc}
               onChange={(e) => setNewDesc(e.target.value)}
             />
           </div>
           <div>
-            <button type="submit" className="neo-btn neo-btn-primary neo-btn-sm" disabled={creatingFeature}>
+            <button type="submit" className="y2k-btn y2k-btn-primary y2k-btn-sm" disabled={creatingFeature}>
               <Plus size={16} aria-hidden="true" />
               <span>{creatingFeature ? 'Registrando...' : 'Adicionar Funcionalidade'}</span>
             </button>

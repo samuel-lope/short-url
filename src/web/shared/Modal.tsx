@@ -67,19 +67,25 @@ export function Modal({ open, title, onClose, children, lightDismiss = true }: M
   return (
     <dialog
       ref={dialogRef}
-      className="neo-dialog"
+      className="y2k-dialog"
       aria-labelledby={titleId}
       {...(lightDismiss ? ({ closedby: 'any' } as Record<string, string>) : {})}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
-        <h2 id={titleId} style={{ margin: 0, fontSize: '1.25rem', fontWeight: 900, textTransform: 'uppercase' }}>
+      <div className="y2k-titlebar">
+        <h2 id={titleId} style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800 }}>
           {title}
         </h2>
-        <button type="button" className="neo-btn neo-btn-sm" onClick={onClose} aria-label="Fechar janela">
-          X
+        <button
+          type="button"
+          className="y2k-win-glyph"
+          style={{ cursor: 'pointer' }}
+          onClick={onClose}
+          aria-label="Fechar janela"
+        >
+          ×
         </button>
       </div>
-      {children}
+      <div style={{ padding: '1.35rem' }}>{children}</div>
     </dialog>
   );
 }

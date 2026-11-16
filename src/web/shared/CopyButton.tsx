@@ -15,7 +15,7 @@ export function CopyButton({ text, label = 'Copiar' }: { text: string; label?: s
   };
 
   return (
-    <button type="button" className="neo-btn neo-btn-sm" onClick={handleCopy}>
+    <button type="button" className="y2k-btn y2k-btn-sm" onClick={handleCopy}>
       {copied ? <Check size={15} aria-hidden="true" /> : <Copy size={15} aria-hidden="true" />}
       <span>{copied ? 'Copiado!' : label}</span>
     </button>

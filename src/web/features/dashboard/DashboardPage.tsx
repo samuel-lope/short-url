@@ -106,17 +106,17 @@ export function DashboardPage() {
     <div style={{ display: 'grid', gap: '1.5rem' }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
         <div>
-          <h1 className="page-title" style={{ marginBottom: '0.35rem' }}>
+          <h1 className="page-title" style={{ marginBottom: '0.35rem', color: '#ffffff', borderBottomColor: 'rgba(255,255,255,0.35)' }}>
             Painel de Controle
           </h1>
-          <div style={{ fontSize: '0.88rem' }}>
-            Plano: <strong>{user?.plan.name}</strong> · Recursos ativos:{' '}
+          <div style={{ fontSize: '0.88rem', color: '#dbeafe' }}>
+            Perfil: <strong>{user?.plan.name}</strong> · Recursos ativos:{' '}
             <strong>{enabledFeatures.length}</strong>
           </div>
         </div>
 
         <FeatureGate feature="links.create">
-          <button type="button" className="neo-btn neo-btn-primary" onClick={() => setCreateOpen(true)}>
+          <button type="button" className="y2k-btn y2k-btn-primary" onClick={() => setCreateOpen(true)}>
             <Plus size={18} aria-hidden="true" />
             <span>Novo Link</span>
           </button>
@@ -125,19 +125,19 @@ export function DashboardPage() {
 
       {overview && (
         <section className="stats-grid" aria-label="Resumo de uso">
-          <div className="neo-card-sm">
+          <div className="y2k-card-sm">
             <div className="stat-label">Links Criados</div>
             <div className="stat-value">{overview.totalLinks}</div>
           </div>
-          <div className="neo-card-sm neo-card-mint">
+          <div className="y2k-card-sm y2k-card-mint">
             <div className="stat-label">Cliques Totais</div>
             <div className="stat-value">{overview.totalClicks}</div>
           </div>
-          <div className="neo-card-sm">
+          <div className="y2k-card-sm">
             <div className="stat-label">Links Dinâmicos</div>
             <div className="stat-value">{overview.dynamicLinks}</div>
           </div>
-          <div className="neo-card-sm neo-card-yellow">
+          <div className="y2k-card-sm y2k-card-yellow">
             <div className="stat-label">Scans de QR</div>
             <div className="stat-value">{overview.totalScans}</div>
           </div>
@@ -150,92 +150,98 @@ export function DashboardPage() {
         </div>
       )}
 
-      <section aria-labelledby="links-table-heading">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-          <h2 id="links-table-heading" style={{ margin: 0, fontSize: '1.15rem', fontWeight: 900, textTransform: 'uppercase' }}>
-            Seus Short Links
+      <section className="y2k-window" aria-labelledby="links-table-heading">
+        <div className="y2k-titlebar">
+          <h2 id="links-table-heading" style={{ margin: 0, fontSize: '0.9rem', fontWeight: 800 }}>
+            MEUS_LINKS.SYS
           </h2>
+          <span className="y2k-titlebar-dots" aria-hidden="true">
+            <span className="y2k-win-glyph">_</span>
+            <span className="y2k-win-glyph">□</span>
+          </span>
         </div>
 
-        {loading ? (
-          <div className="neo-card-sm">Carregando links...</div>
-        ) : links.length === 0 ? (
-          <div className="neo-card-sm">
-            Você ainda não criou nenhum link na sua conta. Clique em <strong>Novo Link</strong> para começar.
-          </div>
-        ) : (
-          <div tabIndex={0} role="region" aria-labelledby="links-table-heading" className="table-wrapper">
-            <table className="neo-table">
-              <thead>
-                <tr>
-                  <th>Short URL</th>
-                  <th>Tipo</th>
-                  <th>Destino Ativo</th>
-                  <th>Uso</th>
-                  <th>Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {links.map((item) => (
-                  <tr key={item.id}>
-                    <th scope="row">
-                      <div style={{ fontWeight: 900 }}>{item.title || item.shortCode}</div>
-                      <div style={{ fontSize: '0.84rem', wordBreak: 'break-all' }}>
-                        <a href={item.shortUrl} target="_blank" rel="noreferrer">
-                          {item.shortUrl} <ExternalLink size={12} aria-hidden="true" />
-                        </a>
-                      </div>
-                    </th>
-                    <td data-label="Tipo">
-                      <span className={`tag ${item.mode === 'dynamic' ? 'tag-purple' : 'tag-muted'}`}>
-                        {item.mode === 'dynamic' ? (
-                          <>
-                            <Shuffle size={12} aria-hidden="true" />
-                            <span>Dinâmico ({item.targetsCount})</span>
-                          </>
-                        ) : (
-                          'Estático'
-                        )}
-                      </span>
-                      {item.hasQr && (
-                        <span className="tag tag-mint" style={{ marginLeft: '0.35rem' }}>
-                          <QrCode size={12} aria-hidden="true" />
-                          <span>QR</span>
-                        </span>
-                      )}
-                    </td>
-                    <td data-label="Destino Ativo">
-                      {item.activeTargetLabel && (
-                        <div style={{ fontWeight: 800, fontSize: '0.82rem' }}>{item.activeTargetLabel}</div>
-                      )}
-                      <div style={{ fontSize: '0.84rem', maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {item.activeTargetUrl || item.longUrl}
-                      </div>
-                    </td>
-                    <td data-label="Uso">
-                      <strong>{item.totalClicks}</strong> cliques
-                      {item.qrScanCount !== null && (
-                        <div style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>{item.qrScanCount} scans QR</div>
-                      )}
-                    </td>
-                    <td data-label="Ações">
-                      <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap' }}>
-                        <CopyButton text={item.shortUrl} label="Copiar" />
-                        <Link to={`/app/links/${item.id}`} className="neo-btn neo-btn-sm neo-btn-yellow">
-                          <Settings size={14} aria-hidden="true" />
-                          <span>Gerenciar</span>
-                        </Link>
-                      </div>
-                    </td>
+        <div className="y2k-window-body">
+          {loading ? (
+            <div className="y2k-card-sm">Carregando links...</div>
+          ) : links.length === 0 ? (
+            <div className="y2k-card-sm">
+              Você ainda não criou nenhum link na sua conta. Clique em <strong>Novo Link</strong> para começar.
+            </div>
+          ) : (
+            <div tabIndex={0} role="region" aria-labelledby="links-table-heading" className="table-wrapper">
+              <table className="y2k-table">
+                <thead>
+                  <tr>
+                    <th>Short URL</th>
+                    <th>Tipo</th>
+                    <th>Destino Ativo</th>
+                    <th>Uso</th>
+                    <th>Ações</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                </thead>
+                <tbody>
+                  {links.map((item) => (
+                    <tr key={item.id}>
+                      <th scope="row">
+                        <div style={{ fontWeight: 900 }}>{item.title || item.shortCode}</div>
+                        <div className="mono-url" style={{ fontSize: '0.84rem' }}>
+                          <a href={item.shortUrl} target="_blank" rel="noreferrer">
+                            {item.shortUrl} <ExternalLink size={12} aria-hidden="true" />
+                          </a>
+                        </div>
+                      </th>
+                      <td data-label="Tipo">
+                        <span className={`tag ${item.mode === 'dynamic' ? 'tag-purple' : 'tag-muted'}`}>
+                          {item.mode === 'dynamic' ? (
+                            <>
+                              <Shuffle size={12} aria-hidden="true" />
+                              <span>Dinâmico ({item.targetsCount})</span>
+                            </>
+                          ) : (
+                            'Estático'
+                          )}
+                        </span>
+                        {item.hasQr && (
+                          <span className="tag tag-mint" style={{ marginLeft: '0.35rem' }}>
+                            <QrCode size={12} aria-hidden="true" />
+                            <span>QR</span>
+                          </span>
+                        )}
+                      </td>
+                      <td data-label="Destino Ativo">
+                        {item.activeTargetLabel && (
+                          <div style={{ fontWeight: 800, fontSize: '0.82rem' }}>{item.activeTargetLabel}</div>
+                        )}
+                        <div className="mono-url" style={{ fontSize: '0.82rem', maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {item.activeTargetUrl || item.longUrl}
+                        </div>
+                      </td>
+                      <td data-label="Uso">
+                        <strong>{item.totalClicks}</strong> cliques
+                        {item.qrScanCount !== null && (
+                          <div style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>{item.qrScanCount} scans QR</div>
+                        )}
+                      </td>
+                      <td data-label="Ações">
+                        <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap' }}>
+                          <CopyButton text={item.shortUrl} label="Copiar" />
+                          <Link to={`/app/links/${item.id}`} className="y2k-btn y2k-btn-sm y2k-btn-yellow">
+                            <Settings size={14} aria-hidden="true" />
+                            <span>Gerenciar</span>
+                          </Link>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </section>
 
-      <Modal open={createOpen} title="Criar Novo Link" onClose={() => setCreateOpen(false)}>
+      <Modal open={createOpen} title="NOVO_LINK.EXE" onClose={() => setCreateOpen(false)}>
         <form className="form-stack" onSubmit={handleCreate}>
           <div className="field">
             <label htmlFor="modal-url" className="field-label">
@@ -244,7 +250,7 @@ export function DashboardPage() {
             <input
               id="modal-url"
               type="url"
-              className="neo-input"
+              className="y2k-input"
               placeholder="https://exemplo.com/destino"
               required
               autoFocus
@@ -260,7 +266,7 @@ export function DashboardPage() {
             <input
               id="modal-title"
               type="text"
-              className="neo-input"
+              className="y2k-input"
               placeholder="Ex: Campanha Black Friday"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -268,7 +274,7 @@ export function DashboardPage() {
           </div>
 
           <FeatureGate feature="url.dynamic_switch">
-            <fieldset style={{ border: '2px solid var(--ink)', padding: '0.65rem', margin: 0 }}>
+            <fieldset style={{ border: '2px solid var(--bevel-mid)', borderRadius: 6, padding: '0.65rem', margin: 0 }}>
               <legend className="field-label">Modo do Link</legend>
               <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginTop: '0.35rem' }}>
                 <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
@@ -291,7 +297,7 @@ export function DashboardPage() {
               <input
                 id="modal-slug"
                 type="text"
-                className="neo-input"
+                className="y2k-input"
                 placeholder="meu-link"
                 value={customSlug}
                 onChange={(e) => setCustomSlug(e.target.value)}
@@ -306,10 +312,10 @@ export function DashboardPage() {
           )}
 
           <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'flex-end' }}>
-            <button type="button" className="neo-btn neo-btn-sm" onClick={() => setCreateOpen(false)}>
+            <button type="button" className="y2k-btn y2k-btn-sm" onClick={() => setCreateOpen(false)}>
               Cancelar
             </button>
-            <button type="submit" className="neo-btn neo-btn-primary neo-btn-sm" disabled={submitting}>
+            <button type="submit" className="y2k-btn y2k-btn-primary y2k-btn-sm" disabled={submitting}>
               {submitting ? 'Criando...' : 'Criar Link'}
             </button>
           </div>

@@ -94,7 +94,7 @@ export function LinkDetailPage() {
     }
   };
 
-  if (loading) return <div className="neo-card-sm">Carregando detalhes...</div>;
+  if (loading) return <div className="y2k-card-sm">Carregando detalhes...</div>;
   if (error || !data) {
     return (
       <div className="alert-error" role="alert">
@@ -106,14 +106,22 @@ export function LinkDetailPage() {
   return (
     <div style={{ display: 'grid', gap: '1.25rem' }}>
       <div>
-        <Link to="/app" className="neo-btn neo-btn-sm">
+        <Link to="/app" className="y2k-btn y2k-btn-sm">
           <ArrowLeft size={15} aria-hidden="true" />
           <span>Voltar ao Painel</span>
         </Link>
       </div>
 
-      <section className="neo-card" aria-labelledby="link-detail-title">
-        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
+      <section className="y2k-window" aria-labelledby="link-detail-title">
+        <div className="y2k-titlebar">
+          <span>LINK_PROPS.EXE — /{data.link.shortCode}</span>
+          <span className="y2k-titlebar-dots" aria-hidden="true">
+            <span className="y2k-win-glyph">_</span>
+            <span className="y2k-win-glyph">□</span>
+          </span>
+        </div>
+
+        <div className="y2k-window-body" style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
           <div style={{ minWidth: 0, flex: '1 1 300px' }}>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem', marginBottom: '0.5rem' }}>
               <span className={`tag ${data.link.mode === 'dynamic' ? 'tag-purple' : 'tag-muted'}`}>
@@ -129,24 +137,24 @@ export function LinkDetailPage() {
               {data.link.title || data.link.shortCode}
             </h1>
 
-            <div style={{ fontWeight: 900, fontSize: '1.05rem', wordBreak: 'break-all', marginBottom: '0.35rem' }}>
+            <div className="mono-url" style={{ fontWeight: 900, fontSize: '1.02rem', marginBottom: '0.35rem' }}>
               <a href={data.link.shortUrl} target="_blank" rel="noreferrer">
                 {data.link.shortUrl} <ExternalLink size={14} aria-hidden="true" />
               </a>
             </div>
-            <div style={{ fontSize: '0.85rem', color: 'var(--muted)', wordBreak: 'break-all' }}>
+            <div className="mono-url" style={{ fontSize: '0.84rem', color: 'var(--muted)' }}>
               Fallback padrão: {data.link.longUrl}
             </div>
           </div>
 
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
             <CopyButton text={data.link.shortUrl} label="Copiar URL" />
-            <button type="button" className="neo-btn neo-btn-sm" onClick={handleToggleActive}>
+            <button type="button" className="y2k-btn y2k-btn-sm" onClick={handleToggleActive}>
               {data.link.isActive ? 'Pausar Link' : 'Reativar Link'}
             </button>
             <button
               type="button"
-              className="neo-btn neo-btn-sm neo-btn-danger"
+              className="y2k-btn y2k-btn-sm y2k-btn-danger"
               onClick={() => setConfirmDeleteOpen(true)}
             >
               <Trash2 size={15} aria-hidden="true" />
@@ -156,7 +164,7 @@ export function LinkDetailPage() {
         </div>
       </section>
 
-      <div>
+      <div className="y2k-card">
         <div role="tablist" aria-label="Gerenciamento do link" className="tablist">
           <button
             id="tab-targets"
@@ -237,13 +245,13 @@ export function LinkDetailPage() {
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.6rem' }}>
           <button
             type="button"
-            className="neo-btn neo-btn-sm"
+            className="y2k-btn y2k-btn-sm"
             autoFocus
             onClick={() => setConfirmDeleteOpen(false)}
           >
             Cancelar
           </button>
-          <button type="button" className="neo-btn neo-btn-sm neo-btn-danger" onClick={handleDelete}>
+          <button type="button" className="y2k-btn y2k-btn-sm y2k-btn-danger" onClick={handleDelete}>
             Confirmar exclusão
           </button>
         </div>

@@ -110,7 +110,7 @@ export function DynamicQrPanel({ linkId, qrUrl, shortCode, initialQr, onSaved }:
       fallback={<LockedFeatureNotice feature="qr.dynamic" title="QR Code Dinâmico bloqueado" />}
     >
       <div className="split-grid">
-        <div className="neo-card-sm" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.85rem' }}>
+        <div className="y2k-card-sm" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.85rem' }}>
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'center' }}>
             <span className="tag tag-mint">QR Dinâmico</span>
             <span className="tag">{initialQr?.scanCount ?? 0} scans</span>
@@ -118,7 +118,8 @@ export function DynamicQrPanel({ linkId, qrUrl, shortCode, initialQr, onSaved }:
 
           <div
             style={{
-              border: '4px solid #000',
+              border: '2px solid var(--bevel-dark)',
+              borderRadius: 6,
               padding: '0.75rem',
               background: style.bgColor,
               textAlign: 'center',
@@ -140,24 +141,24 @@ export function DynamicQrPanel({ linkId, qrUrl, shortCode, initialQr, onSaved }:
             )}
           </div>
 
-          <div style={{ fontSize: '0.82rem', wordBreak: 'break-all', textAlign: 'center' }}>
+          <div className="mono-url" style={{ fontSize: '0.82rem', textAlign: 'center' }}>
             Codifica: <strong>{qrUrl}</strong>
           </div>
 
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'center' }}>
             <CopyButton text={qrUrl} label="Copiar URL QR" />
-            <button type="button" className="neo-btn neo-btn-sm neo-btn-yellow" onClick={downloadPng}>
+            <button type="button" className="y2k-btn y2k-btn-sm y2k-btn-yellow" onClick={downloadPng}>
               <Download size={15} aria-hidden="true" />
               <span>PNG</span>
             </button>
-            <button type="button" className="neo-btn neo-btn-sm" onClick={downloadSvg}>
+            <button type="button" className="y2k-btn y2k-btn-sm" onClick={downloadSvg}>
               <Download size={15} aria-hidden="true" />
               <span>SVG</span>
             </button>
           </div>
         </div>
 
-        <form className="neo-card-sm form-stack" onSubmit={handleSave}>
+        <form className="y2k-card-sm form-stack" onSubmit={handleSave}>
           <h2 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 900, textTransform: 'uppercase' }}>
             Personalizar QR Dinâmico
           </h2>
@@ -173,7 +174,7 @@ export function DynamicQrPanel({ linkId, qrUrl, shortCode, initialQr, onSaved }:
               <input
                 id="qr-fg"
                 type="color"
-                className="neo-input"
+                className="y2k-input"
                 style={{ padding: '0.25rem' }}
                 value={style.fgColor}
                 onChange={(e) => setStyle({ ...style, fgColor: e.target.value })}
@@ -187,7 +188,7 @@ export function DynamicQrPanel({ linkId, qrUrl, shortCode, initialQr, onSaved }:
               <input
                 id="qr-bg"
                 type="color"
-                className="neo-input"
+                className="y2k-input"
                 style={{ padding: '0.25rem' }}
                 value={style.bgColor}
                 onChange={(e) => setStyle({ ...style, bgColor: e.target.value })}
@@ -202,7 +203,7 @@ export function DynamicQrPanel({ linkId, qrUrl, shortCode, initialQr, onSaved }:
               </label>
               <select
                 id="qr-ecc"
-                className="neo-select"
+                className="y2k-select"
                 value={style.errorCorrectionLevel}
                 onChange={(e) =>
                   setStyle({ ...style, errorCorrectionLevel: e.target.value as QrStyle['errorCorrectionLevel'] })
@@ -224,7 +225,7 @@ export function DynamicQrPanel({ linkId, qrUrl, shortCode, initialQr, onSaved }:
                 type="number"
                 min={0}
                 max={10}
-                className="neo-input"
+                className="y2k-input"
                 value={style.margin}
                 onChange={(e) => setStyle({ ...style, margin: Number(e.target.value) })}
               />
@@ -239,7 +240,7 @@ export function DynamicQrPanel({ linkId, qrUrl, shortCode, initialQr, onSaved }:
               id="qr-frame"
               type="text"
               maxLength={32}
-              className="neo-input"
+              className="y2k-input"
               placeholder="Ex: ESCANEIE AQUI"
               value={style.frameLabel ?? ''}
               onChange={(e) => setStyle({ ...style, frameLabel: e.target.value })}
@@ -252,12 +253,12 @@ export function DynamicQrPanel({ linkId, qrUrl, shortCode, initialQr, onSaved }:
             </div>
           )}
           {savedMsg && (
-            <div className="neo-card-sm neo-card-mint" role="status">
+            <div className="y2k-card-sm y2k-card-mint" role="status">
               <strong>{savedMsg}</strong>
             </div>
           )}
 
-          <button type="submit" className="neo-btn neo-btn-primary" disabled={saving}>
+          <button type="submit" className="y2k-btn y2k-btn-primary" disabled={saving}>
             <Save size={17} aria-hidden="true" />
             <span>{saving ? 'Salvando...' : initialQr ? 'Atualizar QR Dinâmico' : 'Criar QR Dinâmico'}</span>
           </button>

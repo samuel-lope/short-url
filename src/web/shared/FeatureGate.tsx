@@ -12,7 +12,7 @@ export function LockedFeatureNotice({
   description?: string;
 }) {
   return (
-    <div className="neo-card-sm neo-card-yellow" role="region" aria-label={title}>
+    <div className="y2k-card-sm y2k-card-yellow" role="region" aria-label={title}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 900 }}>
         <Lock size={18} aria-hidden="true" />
         <span>{title}</span>
