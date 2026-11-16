@@ -1,0 +1,2 @@
+HASH_SECRET=change-me-in-production
+IP_HASH_SALT=change-me-ip-salt

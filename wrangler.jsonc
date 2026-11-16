@@ -1,21 +1,22 @@
 {
   "name": "short-url",
   "compatibility_date": "2025-06-20",
-  "main": "src/index.js",
+  "main": "src/worker/index.ts",
   "assets": {
-    "directory": "./public"
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": true
   },
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "shorturldb",
-      "database_id": "3e58056d-5ec2-4132-bee8-d038ed229a3b"
+      "database_id": "3e58056d-5ec2-4132-bee8-d038ed229a3b",
+      "migrations_dir": "migrations"
     }
   ],
-  "vars": {
-  },
-  "kv_namespaces": [
-  ],
+  "vars": {},
+  "kv_namespaces": [],
   "routes": [
     {
       "pattern": "sa.api.br",
