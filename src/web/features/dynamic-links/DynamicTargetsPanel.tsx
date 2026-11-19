@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { CheckCircle2, Plus, Shuffle, Trash2 } from 'lucide-react';
+import { CheckCircle2, Pencil, Plus, Shuffle, Trash2 } from 'lucide-react';
 import type { RuleConfig, RuleType } from '../../../shared/contracts.ts';
 import { useAuth } from '../../app/AuthContext.tsx';
 import { apiRequest } from '../../lib/api.ts';
@@ -45,6 +45,12 @@ function formatRuleSummary(ruleType: RuleType, ruleConfig: RuleConfig): string[]
   if (ruleConfig.os?.length) chips.push(`OS: ${ruleConfig.os.join(', ')}`);
   if (ruleConfig.countries?.length) chips.push(`Países: ${ruleConfig.countries.join(', ')}`);
   if (ruleConfig.weight !== undefined) chips.push(`Peso A/B: ${ruleConfig.weight}%`);
+  if (ruleConfig.startAt !== undefined) {
+    chips.push(`Início: ${new Date(ruleConfig.startAt * 1000).toLocaleString('pt-BR')}`);
+  }
+  if (ruleConfig.endAt !== undefined) {
+    chips.push(`Fim: ${new Date(ruleConfig.endAt * 1000).toLocaleString('pt-BR')}`);
+  }
   return chips;
 }
 
@@ -62,10 +68,18 @@ export function DynamicTargetsPanel({ linkId, mode, activeTargetId, targets, onR
   const [osList, setOsList] = useState<Array<'iOS' | 'Android' | 'Windows' | 'macOS' | 'Linux'>>([]);
   const [countriesRaw, setCountriesRaw] = useState('BR');
   const [weight, setWeight] = useState(50);
+  const [startLocal, setStartLocal] = useState('');
+  const [endLocal, setEndLocal] = useState('');
 
   const [submitting, setSubmitting] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<LinkTargetItem | null>(null);
+  const [editingTarget, setEditingTarget] = useState<LinkTargetItem | null>(null);
+  const [editLabel, setEditLabel] = useState('');
+  const [editTargetUrl, setEditTargetUrl] = useState('');
+  const [editPriority, setEditPriority] = useState(0);
+  const [editActive, setEditActive] = useState(true);
+  const [savingEdit, setSavingEdit] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const buildRuleConfig = (): RuleConfig => {
@@ -79,8 +93,49 @@ export function DynamicTargetsPanel({ linkId, mode, activeTargetId, targets, onR
         .filter((c) => c.length === 2);
       return { countries };
     }
+    if (ruleType === 'schedule') {
+      const startAt = startLocal ? Math.floor(new Date(startLocal).getTime() / 1000) : undefined;
+      const endAt = endLocal ? Math.floor(new Date(endLocal).getTime() / 1000) : undefined;
+      return {
+        ...(Number.isFinite(startAt) ? { startAt } : {}),
+        ...(Number.isFinite(endAt) ? { endAt } : {}),
+      };
+    }
     if (ruleType === 'weight') return { weight };
     return null;
+  };
+
+  const openEditTargetModal = (t: LinkTargetItem) => {
+    setEditingTarget(t);
+    setEditLabel(t.label);
+    setEditTargetUrl(t.targetUrl);
+    setEditPriority(t.priority);
+    setEditActive(t.isActive);
+    setError(null);
+  };
+
+  const handleSaveTargetEdit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!editingTarget) return;
+    setSavingEdit(true);
+    setError(null);
+    try {
+      await apiRequest(`/api/links/${linkId}/targets/${editingTarget.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          label: editLabel,
+          targetUrl: editTargetUrl,
+          priority: editPriority,
+          isActive: editActive,
+        }),
+      });
+      setEditingTarget(null);
+      await onRefresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao editar destino.');
+    } finally {
+      setSavingEdit(false);
+    }
   };
 
   const handleAddTarget = async (e: FormEvent) => {
@@ -220,6 +275,14 @@ export function DynamicTargetsPanel({ linkId, mode, activeTargetId, targets, onR
                       )
                     )}
                     <Button
+                      size="sm"
+                      disabled={busyId === target.id}
+                      aria-label={`Editar destino ${target.label}`}
+                      onClick={() => openEditTargetModal(target)}
+                    >
+                      <Pencil size={14} aria-hidden="true" />
+                    </Button>
+                    <Button
                       variant="danger"
                       size="sm"
                       disabled={busyId === target.id}
@@ -279,6 +342,7 @@ export function DynamicTargetsPanel({ linkId, mode, activeTargetId, targets, onR
                       {canConditional && <option value="device">Condicional: Dispositivo</option>}
                       {canConditional && <option value="os">Condicional: Sistema Operacional</option>}
                       {canConditional && <option value="geo">Condicional: País (Geo)</option>}
+                      {canConditional && <option value="schedule">Condicional: Agendamento (Data/Hora)</option>}
                       {canConditional && <option value="weight">Teste A/B (Peso percentual)</option>}
                     </SelectInput>
                   )}
@@ -365,6 +429,31 @@ export function DynamicTargetsPanel({ linkId, mode, activeTargetId, targets, onR
                 </Field>
               )}
 
+              {ruleType === 'schedule' && (
+                <div className="form-row">
+                  <Field label="Início (opcional)" htmlFor="schedule-start">
+                    {({ inputId }) => (
+                      <TextInput
+                        id={inputId}
+                        type="datetime-local"
+                        value={startLocal}
+                        onChange={(e) => setStartLocal(e.target.value)}
+                      />
+                    )}
+                  </Field>
+                  <Field label="Fim (opcional)" htmlFor="schedule-end">
+                    {({ inputId }) => (
+                      <TextInput
+                        id={inputId}
+                        type="datetime-local"
+                        value={endLocal}
+                        onChange={(e) => setEndLocal(e.target.value)}
+                      />
+                    )}
+                  </Field>
+                </div>
+              )}
+
               {ruleType === 'weight' && (
                 <Field label="Peso relativo (1–100)" htmlFor="ab-weight">
                   {({ inputId }) => (
@@ -390,6 +479,65 @@ export function DynamicTargetsPanel({ linkId, mode, activeTargetId, targets, onR
           </Tile>
         </BentoGrid>
       </div>
+
+      <Modal
+        open={Boolean(editingTarget)}
+        title="Editar destino"
+        onClose={() => setEditingTarget(null)}
+      >
+        <form className="form-stack" onSubmit={handleSaveTargetEdit}>
+          <Field label="Nome do destino" htmlFor="edit-target-label" required>
+            {({ inputId }) => (
+              <TextInput
+                id={inputId}
+                type="text"
+                required
+                value={editLabel}
+                onChange={(e) => setEditLabel(e.target.value)}
+              />
+            )}
+          </Field>
+          <Field label="URL de destino" htmlFor="edit-target-url" required>
+            {({ inputId }) => (
+              <TextInput
+                id={inputId}
+                type="url"
+                required
+                value={editTargetUrl}
+                onChange={(e) => setEditTargetUrl(e.target.value)}
+              />
+            )}
+          </Field>
+          <Field label="Prioridade" htmlFor="edit-target-priority">
+            {({ inputId }) => (
+              <TextInput
+                id={inputId}
+                type="number"
+                min={0}
+                max={999}
+                value={editPriority}
+                onChange={(e) => setEditPriority(Number(e.target.value))}
+              />
+            )}
+          </Field>
+          <label className="choice-pill" style={{ width: 'fit-content' }}>
+            <input
+              type="checkbox"
+              checked={editActive}
+              onChange={(e) => setEditActive(e.target.checked)}
+            />
+            <span>Destino ativo para roteamento</span>
+          </label>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.6rem' }}>
+            <Button size="sm" onClick={() => setEditingTarget(null)}>
+              Cancelar
+            </Button>
+            <Button type="submit" variant="primary" size="sm" disabled={savingEdit}>
+              {savingEdit ? 'Salvando...' : 'Salvar destino'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
 
       <Modal
         open={Boolean(deleteTarget)}

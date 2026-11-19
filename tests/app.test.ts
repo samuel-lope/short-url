@@ -23,8 +23,10 @@ function extractSessionCookie(res: Response): string {
 }
 
 describe('Core services', () => {
-  it('validates http/https URLs and rejects unsafe schemes', () => {
-    expect(validateHttpUrl('https://sa.api.br/teste').valid).toBe(true);
+  it('validates http/https URLs, rejects unsafe schemes, and blocks self-redirect loops', () => {
+    expect(validateHttpUrl('https://example.com/teste').valid).toBe(true);
+    expect(validateHttpUrl('https://sa.api.br/teste').valid).toBe(false);
+    expect(validateHttpUrl('https://ue.ia.br/abc').valid).toBe(false);
     expect(validateHttpUrl('javascript:alert(1)').valid).toBe(false);
     expect(validateHttpUrl('data:text/html,hi').valid).toBe(false);
   });
@@ -381,5 +383,167 @@ describe('Full-stack API & Redirects', () => {
     };
     expect(meAfterBody.user.plan.name).toBe('Parceiro VIP');
     expect(meAfterBody.features['links.custom_slug'].enabled).toBe(true);
+  });
+
+  it('restores anonymous features on logout, enforces security headers & CSRF, and rate-limits auth', async () => {
+    const db = createTestD1();
+    const env = createTestEnv(db);
+    const app = createApp();
+
+    const reg = await app.fetch(
+      new Request('https://sa.api.br/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': '1.2.3.4' },
+        body: JSON.stringify({ name: 'Admin', email: 'admin@sa.api.br', password: 'Password123!' }),
+      }),
+      env
+    );
+    expect(reg.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(reg.headers.get('x-frame-options')).toBe('DENY');
+    expect(reg.headers.get('content-security-policy')).toContain("default-src 'self'");
+    const cookie = extractSessionCookie(reg);
+
+    // CSRF guard blocks foreign Origin on mutation
+    const csrfRes = await app.fetch(
+      new Request('https://sa.api.br/api/auth/logout', {
+        method: 'POST',
+        headers: { Origin: 'https://evil.example.com', Cookie: cookie },
+      }),
+      env
+    );
+    expect(csrfRes.status).toBe(403);
+
+    // Logout restores anonymous features
+    const logoutRes = await app.fetch(
+      new Request('https://sa.api.br/api/auth/logout', {
+        method: 'POST',
+        headers: { Origin: 'https://sa.api.br', Cookie: cookie },
+      }),
+      env
+    );
+    expect(logoutRes.status).toBe(200);
+    const logoutBody = (await logoutRes.json()) as { features: Record<string, { enabled: boolean }> };
+    expect(logoutBody.features['links.create'].enabled).toBe(true);
+    expect(logoutBody.features['links.manage_own'].enabled).toBe(false);
+
+    // Rate limit kicks in after 10 auth requests from same IP (reg was #1)
+    let lastStatus = 200;
+    for (let i = 0; i < 10; i++) {
+      const r = await app.fetch(
+        new Request('https://sa.api.br/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': '1.2.3.4' },
+          body: JSON.stringify({ email: 'admin@sa.api.br', password: 'wrong' }),
+        }),
+        env
+      );
+      lastStatus = r.status;
+    }
+    expect(lastStatus).toBe(429);
+  });
+
+  it('prevents last-admin lockout, supports atomic user permissions, pagination, and safe JSON parsing', async () => {
+    const db = createTestD1();
+    const env = createTestEnv(db);
+    const app = createApp();
+
+    const adminReg = await app.fetch(
+      new Request('https://sa.api.br/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'Sole Admin', email: 'sole@sa.api.br', password: 'Password123!' }),
+      }),
+      env
+    );
+    const adminBody = (await adminReg.json()) as { user: { id: number } };
+    const adminCookie = extractSessionCookie(adminReg);
+
+    // Cannot demote the only active admin
+    const demoteRes = await app.fetch(
+      new Request(`https://sa.api.br/api/admin/users/${adminBody.user.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Cookie: adminCookie },
+        body: JSON.stringify({ planId: 1 }),
+      }),
+      env
+    );
+    expect(demoteRes.status).toBe(400);
+
+    // Register second user & update permissions atomically
+    const userReg = await app.fetch(
+      new Request('https://sa.api.br/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'Member', email: 'member@sa.api.br', password: 'Password123!' }),
+      }),
+      env
+    );
+    const userBody = (await userReg.json()) as { user: { id: number } };
+    const userCookie = extractSessionCookie(userReg);
+
+    const atomicRes = await app.fetch(
+      new Request(`https://sa.api.br/api/admin/users/${userBody.user.id}/permissions`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Cookie: adminCookie },
+        body: JSON.stringify({
+          planId: 1,
+          overrides: [{ featureKey: 'analytics.detailed', enabled: true }],
+        }),
+      }),
+      env
+    );
+    expect(atomicRes.status).toBe(200);
+
+    const meRes = await app.fetch(
+      new Request('https://sa.api.br/api/auth/me', { headers: { Cookie: userCookie } }),
+      env
+    );
+    const meJson = (await meRes.json()) as { features: Record<string, { enabled: boolean }> };
+    expect(meJson.features['analytics.detailed'].enabled).toBe(true);
+
+    // Create 2 links and test search + pagination
+    await app.fetch(
+      new Request('https://sa.api.br/api/links', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Cookie: adminCookie },
+        body: JSON.stringify({ url: 'https://alpha.example.com', title: 'Alpha', mode: 'static' }),
+      }),
+      env
+    );
+    const dynRes = await app.fetch(
+      new Request('https://sa.api.br/api/links', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Cookie: adminCookie },
+        body: JSON.stringify({ url: 'https://beta.example.com', title: 'Beta', mode: 'dynamic' }),
+      }),
+      env
+    );
+    const dyn = (await dynRes.json()) as { id: number };
+
+    // Corrupt rule_config JSON directly in DB and ensure GET /api/links/:id does not crash
+    await db
+      .prepare('UPDATE link_targets SET rule_config = ? WHERE link_id = ?')
+      .bind('{invalid-json', dyn.id)
+      .run();
+    const detailRes = await app.fetch(
+      new Request(`https://sa.api.br/api/links/${dyn.id}`, { headers: { Cookie: adminCookie } }),
+      env
+    );
+    expect(detailRes.status).toBe(200);
+
+    const searchRes = await app.fetch(
+      new Request('https://sa.api.br/api/links?q=Beta&mode=dynamic&page=1&limit=1', {
+        headers: { Cookie: adminCookie },
+      }),
+      env
+    );
+    expect(searchRes.status).toBe(200);
+    const searchJson = (await searchRes.json()) as {
+      links: Array<{ title: string }>;
+      pagination: { total: number; totalPages: number };
+    };
+    expect(searchJson.links).toHaveLength(1);
+    expect(searchJson.links[0].title).toBe('Beta');
+    expect(searchJson.pagination.total).toBe(1);
   });
 });

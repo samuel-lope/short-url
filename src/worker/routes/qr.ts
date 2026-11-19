@@ -3,6 +3,7 @@ import { qrStyleSchema } from '../../shared/contracts.ts';
 import type { AppEnv } from '../types.ts';
 import { requireAuth, requireFeature } from '../middleware/featureGate.ts';
 import { getFeatureLimit } from '../services/entitlements.ts';
+import { safeJsonParse } from '../services/validation.ts';
 
 export const qrRoutes = new Hono<AppEnv>();
 
@@ -32,7 +33,7 @@ qrRoutes.get('/:linkId', async (c) => {
       ? {
           id: qr.id,
           isDynamic: qr.isDynamic === 1,
-          style: JSON.parse(qr.styleJson || '{}'),
+          style: safeJsonParse<Record<string, unknown>>(qr.styleJson, {}),
           scanCount: qr.scanCount,
         }
       : null,

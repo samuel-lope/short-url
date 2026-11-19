@@ -4,6 +4,8 @@ import type { AppEnv } from './types.ts';
 import { RESERVED_SLUGS } from '../shared/contracts.ts';
 import { corsMiddleware } from './middleware/cors.ts';
 import { sessionMiddleware } from './middleware/auth.ts';
+import { csrfOriginGuard, securityHeadersMiddleware } from './middleware/security.ts';
+import { rateLimit } from './middleware/rateLimit.ts';
 import { hasFeature } from './services/entitlements.ts';
 import { authRoutes } from './routes/auth.ts';
 import { createShortLink, linkRoutes } from './routes/links.ts';
@@ -25,14 +27,24 @@ export function createApp() {
     return c.json({ error: 'Erro interno do servidor.' }, 500);
   });
 
-  app.use('/api/*', corsMiddleware, sessionMiddleware);
-  app.use('/v1/*', corsMiddleware, sessionMiddleware);
+  app.use('*', securityHeadersMiddleware);
+  app.use('/api/*', corsMiddleware, csrfOriginGuard, sessionMiddleware);
+  app.use('/v1/*', corsMiddleware, csrfOriginGuard, sessionMiddleware);
 
   app.get('/api/health', (c) => c.json({ ok: true }));
 
+  const publicShortenRateLimit = rateLimit({
+    scope: 'public-shorten',
+    maxRequests: 30,
+    windowSeconds: 60,
+  });
+
   const handlePublicShorten = async (c: Context<AppEnv>) => {
     if (!hasFeature(c.get('features'), 'links.create')) {
-      return c.json({ error: 'Criação de links não liberada para este perfil.', code: 'FEATURE_LOCKED', feature: 'links.create' }, 403);
+      return c.json(
+        { error: 'Criação de links não liberada para este perfil.', code: 'FEATURE_LOCKED', feature: 'links.create' },
+        403
+      );
     }
 
     const parsed = publicShortenSchema.safeParse(await c.req.json().catch(() => null));
@@ -55,8 +67,8 @@ export function createApp() {
     return c.json(result.body, result.status);
   };
 
-  app.post('/api/public/shorten', handlePublicShorten);
-  app.post('/v1/short', handlePublicShorten);
+  app.post('/api/public/shorten', publicShortenRateLimit, handlePublicShorten);
+  app.post('/v1/short', publicShortenRateLimit, handlePublicShorten);
 
   app.route('/api/auth', authRoutes);
   app.route('/api/links', linkRoutes);
@@ -71,7 +83,11 @@ export function createApp() {
   });
 
   // Static assets & SPA shell routes
-  const serveSpa = async (c: { env: AppEnv['Bindings']; req: { raw: Request; url: string }; text: (t: string, s?: number) => Response }) => {
+  const serveSpa = async (c: {
+    env: AppEnv['Bindings'];
+    req: { raw: Request; url: string };
+    text: (t: string, s?: number) => Response;
+  }) => {
     if (c.env.ASSETS) {
       return c.env.ASSETS.fetch(c.req.raw);
     }

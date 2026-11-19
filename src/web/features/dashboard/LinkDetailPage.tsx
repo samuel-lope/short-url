@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, BarChart3, ExternalLink, QrCode, Shuffle, Trash2 } from 'lucide-react';
+import { ArrowLeft, BarChart3, ExternalLink, Pencil, QrCode, Shuffle, Trash2 } from 'lucide-react';
 import { apiRequest } from '../../lib/api.ts';
 import { CopyButton } from '../../shared/CopyButton.tsx';
+import { FeatureGate } from '../../shared/FeatureGate.tsx';
 import { Modal } from '../../shared/Modal.tsx';
 import {
   Alert,
@@ -10,7 +11,10 @@ import {
   BentoGrid,
   Button,
   ButtonLink,
+  ChoiceGroup,
+  Field,
   Skeleton,
+  TextInput,
   Tile,
 } from '../../shared/ui/index.ts';
 import { DynamicTargetsPanel, type LinkTargetItem } from '../dynamic-links/DynamicTargetsPanel.tsx';
@@ -52,6 +56,12 @@ export function LinkDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>('targets');
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [editUrl, setEditUrl] = useState('');
+  const [editMode, setEditMode] = useState<'static' | 'dynamic'>('static');
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   const loadDetail = useCallback(async () => {
     if (!Number.isInteger(linkId)) {
@@ -82,6 +92,38 @@ export function LinkDetailPage() {
       body: JSON.stringify({ isActive: !data.link.isActive }),
     });
     await loadDetail();
+  };
+
+  const openEditModal = () => {
+    if (!data) return;
+    setEditTitle(data.link.title ?? '');
+    setEditUrl(data.link.longUrl);
+    setEditMode(data.link.mode);
+    setEditError(null);
+    setEditOpen(true);
+  };
+
+  const handleSaveEdit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!data) return;
+    setSavingEdit(true);
+    setEditError(null);
+    try {
+      await apiRequest(`/api/links/${data.link.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          title: editTitle || null,
+          url: editUrl,
+          mode: editMode,
+        }),
+      });
+      setEditOpen(false);
+      await loadDetail();
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : 'Erro ao atualizar link.');
+    } finally {
+      setSavingEdit(false);
+    }
   };
 
   const handleDelete = async () => {
@@ -150,6 +192,10 @@ export function LinkDetailPage() {
 
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: 'auto' }}>
             <CopyButton text={data.link.shortUrl} label="Copiar URL" />
+            <Button size="sm" onClick={openEditModal}>
+              <Pencil size={14} aria-hidden="true" />
+              <span>Editar</span>
+            </Button>
             <Button size="sm" onClick={handleToggleActive}>
               {data.link.isActive ? 'Pausar Link' : 'Reativar Link'}
             </Button>
@@ -253,6 +299,60 @@ export function LinkDetailPage() {
           </div>
         </Tile>
       </BentoGrid>
+
+      <Modal open={editOpen} title="Editar link" onClose={() => setEditOpen(false)}>
+        <form className="form-stack" onSubmit={handleSaveEdit}>
+          <Field label="Título / Apelido" htmlFor="edit-link-title">
+            {({ inputId }) => (
+              <TextInput
+                id={inputId}
+                type="text"
+                maxLength={120}
+                placeholder="Ex: Campanha Principal"
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+              />
+            )}
+          </Field>
+
+          <Field label="URL padrão (fallback)" htmlFor="edit-link-url" required>
+            {({ inputId }) => (
+              <TextInput
+                id={inputId}
+                type="url"
+                required
+                value={editUrl}
+                onChange={(e) => setEditUrl(e.target.value)}
+              />
+            )}
+          </Field>
+
+          <FeatureGate feature="url.dynamic_switch">
+            <ChoiceGroup
+              legend="Modo do link"
+              name="editLinkMode"
+              type="radio"
+              value={editMode}
+              onChange={(v) => setEditMode(v)}
+              options={[
+                { value: 'static', label: 'Estático' },
+                { value: 'dynamic', label: 'Dinâmico' },
+              ]}
+            />
+          </FeatureGate>
+
+          {editError && <Alert tone="error">{editError}</Alert>}
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.6rem' }}>
+            <Button size="sm" onClick={() => setEditOpen(false)}>
+              Cancelar
+            </Button>
+            <Button type="submit" variant="primary" size="sm" disabled={savingEdit}>
+              {savingEdit ? 'Salvando...' : 'Salvar alterações'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
 
       <Modal open={confirmDeleteOpen} title="Excluir link?" onClose={() => setConfirmDeleteOpen(false)}>
         <p style={{ marginTop: 0 }}>

@@ -70,22 +70,26 @@ export function LinkAnalyticsPanel({ linkId }: { linkId: number }) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
     async function load() {
       setLoading(true);
       setError(null);
       try {
-        const res = await apiRequest<AnalyticsData>(`/api/analytics/links/${linkId}`);
-        if (!cancelled) setData(res);
+        const res = await apiRequest<AnalyticsData>(`/api/analytics/links/${linkId}`, {
+          signal: controller.signal,
+        });
+        if (!controller.signal.aborted) setData(res);
       } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : 'Erro ao carregar métricas.');
+        if (!controller.signal.aborted) {
+          setError(err instanceof Error ? err.message : 'Erro ao carregar métricas.');
+        }
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
     }
     void load();
     return () => {
-      cancelled = true;
+      controller.abort();
     };
   }, [linkId]);
 

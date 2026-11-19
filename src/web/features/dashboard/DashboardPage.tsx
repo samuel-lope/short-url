@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { BarChart3, ExternalLink, Link2, Plus, QrCode, Settings, Shield, Shuffle } from 'lucide-react';
+import { BarChart3, ChevronLeft, ChevronRight, ExternalLink, Link2, Plus, QrCode, Search, Settings, Shield, Shuffle } from 'lucide-react';
 import { useAuth } from '../../app/AuthContext.tsx';
 import { apiRequest } from '../../lib/api.ts';
 import { CopyButton } from '../../shared/CopyButton.tsx';
@@ -15,6 +15,7 @@ import {
   EmptyState,
   Field,
   PageHeader,
+  SelectInput,
   Skeleton,
   StatTile,
   TextInput,
@@ -57,6 +58,12 @@ export function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [searchInput, setSearchInput] = useState('');
+  const [appliedQuery, setAppliedQuery] = useState('');
+  const [modeFilter, setModeFilter] = useState<'all' | 'static' | 'dynamic'>('all');
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ page: 1, limit: 25, total: 0, totalPages: 1 });
+
   const [createOpen, setCreateOpen] = useState(false);
   const [url, setUrl] = useState('');
   const [title, setTitle] = useState('');
@@ -69,8 +76,18 @@ export function DashboardPage() {
     setLoading(true);
     setError(null);
     try {
-      const linksRes = await apiRequest<{ links: LinkSummary[] }>('/api/links');
+      const params = new URLSearchParams({ page: String(page), limit: '25' });
+      if (appliedQuery) params.set('q', appliedQuery);
+      if (modeFilter !== 'all') params.set('mode', modeFilter);
+
+      const linksRes = await apiRequest<{
+        links: LinkSummary[];
+        pagination?: { page: number; limit: number; total: number; totalPages: number };
+      }>(`/api/links?${params.toString()}`);
       setLinks(linksRes.links);
+      if (linksRes.pagination) {
+        setPagination(linksRes.pagination);
+      }
       if (hasFeature('analytics.basic')) {
         const ovRes = await apiRequest<OverviewData>('/api/analytics/overview');
         setOverview(ovRes.summary);
@@ -80,11 +97,17 @@ export function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [hasFeature]);
+  }, [hasFeature, page, appliedQuery, modeFilter]);
 
   useEffect(() => {
     void loadData();
   }, [loadData]);
+
+  const handleSearchSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    setPage(1);
+    setAppliedQuery(searchInput.trim());
+  };
 
   const handleCreate = async (e: FormEvent) => {
     e.preventDefault();
@@ -169,24 +192,83 @@ export function DashboardPage() {
         />
 
         <Tile c={3} r={2} title="Seus Short Links" aria-labelledby="links-table-heading">
+          <search>
+            <form
+              onSubmit={handleSearchSubmit}
+              style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}
+            >
+              <label htmlFor="links-search" className="visually-hidden">
+                Buscar links
+              </label>
+              <TextInput
+                id="links-search"
+                type="search"
+                enterKeyHint="search"
+                placeholder="Buscar por apelido, slug ou URL..."
+                style={{ flex: '1 1 200px', minBlockSize: 42 }}
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+              />
+              <label htmlFor="links-mode-filter" className="visually-hidden">
+                Filtrar por tipo
+              </label>
+              <SelectInput
+                id="links-mode-filter"
+                style={{ width: 'auto', minBlockSize: 42 }}
+                value={modeFilter}
+                onChange={(e) => {
+                  setPage(1);
+                  setModeFilter(e.target.value as 'all' | 'static' | 'dynamic');
+                }}
+              >
+                <option value="all">Todos os tipos</option>
+                <option value="dynamic">Dinâmicos</option>
+                <option value="static">Estáticos</option>
+              </SelectInput>
+              <Button type="submit" size="sm">
+                <Search size={14} aria-hidden="true" />
+                <span>Filtrar</span>
+              </Button>
+            </form>
+          </search>
+
           {loading ? (
             <Skeleton rows={4} />
           ) : links.length === 0 ? (
             <EmptyState
               icon={<Link2 size={28} aria-hidden="true" />}
-              title="Nenhum link criado ainda"
-              description="Crie seu primeiro short link para gerenciar destinos dinâmicos, QR Codes e métricas de uso."
+              title={appliedQuery || modeFilter !== 'all' ? 'Nenhum link encontrado para este filtro' : 'Nenhum link criado ainda'}
+              description={
+                appliedQuery || modeFilter !== 'all'
+                  ? 'Tente limpar a busca ou alterar o filtro de tipo.'
+                  : 'Crie seu primeiro short link para gerenciar destinos dinâmicos, QR Codes e métricas de uso.'
+              }
               action={
-                <FeatureGate feature="links.create">
-                  <Button variant="primary" size="sm" onClick={() => setCreateOpen(true)}>
-                    <Plus size={16} aria-hidden="true" />
-                    <span>Criar primeiro link</span>
+                appliedQuery || modeFilter !== 'all' ? (
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setSearchInput('');
+                      setAppliedQuery('');
+                      setModeFilter('all');
+                      setPage(1);
+                    }}
+                  >
+                    Limpar filtros
                   </Button>
-                </FeatureGate>
+                ) : (
+                  <FeatureGate feature="links.create">
+                    <Button variant="primary" size="sm" onClick={() => setCreateOpen(true)}>
+                      <Plus size={16} aria-hidden="true" />
+                      <span>Criar primeiro link</span>
+                    </Button>
+                  </FeatureGate>
+                )
               }
             />
           ) : (
-            <div tabIndex={0} role="region" aria-label="Tabela de links" className="table-wrapper">
+            <>
+              <div tabIndex={0} role="region" aria-label="Tabela de links" className="table-wrapper">
               <table className="bento-table">
                 <thead>
                   <tr>
@@ -261,6 +343,40 @@ export function DashboardPage() {
                 </tbody>
               </table>
             </div>
+            {pagination.totalPages > 1 && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '0.5rem',
+                  flexWrap: 'wrap',
+                }}
+              >
+                <span className="text-muted" style={{ fontSize: '0.84rem' }}>
+                  Página {pagination.page} de {pagination.totalPages} ({pagination.total} links)
+                </span>
+                <div style={{ display: 'flex', gap: '0.45rem' }}>
+                  <Button
+                    size="sm"
+                    disabled={pagination.page <= 1}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  >
+                    <ChevronLeft size={14} aria-hidden="true" />
+                    <span>Anterior</span>
+                  </Button>
+                  <Button
+                    size="sm"
+                    disabled={pagination.page >= pagination.totalPages}
+                    onClick={() => setPage((p) => p + 1)}
+                  >
+                    <span>Próxima</span>
+                    <ChevronRight size={14} aria-hidden="true" />
+                  </Button>
+                </div>
+              </div>
+            )}
+            </>
           )}
         </Tile>
 

@@ -210,25 +210,28 @@ export function AdminPage() {
     setStatusMsg(null);
 
     try {
-      if (draftPlanId !== editingUser.planId) {
-        await apiRequest(`/api/admin/users/${editingUser.id}`, {
-          method: 'PATCH',
-          body: JSON.stringify({ planId: draftPlanId }),
-        });
-      }
+      const overridesPayload = data.features
+        .map((f) => {
+          const prevOv = data.overrides.find(
+            (o) => o.userId === editingUser.id && o.featureKey === f.key
+          );
+          const prevVal: OverrideValue = prevOv ? (prevOv.enabled ? 'allow' : 'deny') : 'inherit';
+          const nextVal = draftOverrides[f.key] ?? 'inherit';
+          if (nextVal === prevVal) return null;
+          return {
+            featureKey: f.key,
+            enabled: nextVal === 'inherit' ? null : nextVal === 'allow',
+          };
+        })
+        .filter((item): item is { featureKey: string; enabled: boolean | null } => item !== null);
 
-      for (const f of data.features) {
-        const prevOv = data.overrides.find((o) => o.userId === editingUser.id && o.featureKey === f.key);
-        const prevVal: OverrideValue = prevOv ? (prevOv.enabled ? 'allow' : 'deny') : 'inherit';
-        const nextVal = draftOverrides[f.key] ?? 'inherit';
-        if (nextVal !== prevVal) {
-          const enabled = nextVal === 'inherit' ? null : nextVal === 'allow';
-          await apiRequest(`/api/admin/users/${editingUser.id}/features/${encodeURIComponent(f.key)}`, {
-            method: 'PUT',
-            body: JSON.stringify({ enabled }),
-          });
-        }
-      }
+      await apiRequest(`/api/admin/users/${editingUser.id}/permissions`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          planId: draftPlanId,
+          overrides: overridesPayload,
+        }),
+      });
 
       setStatusMsg(`Permissões de ${editingUser.email} atualizadas.`);
       setEditingUser(null);

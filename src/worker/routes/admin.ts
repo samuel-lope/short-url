@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import type { AppEnv } from '../types.ts';
 import { requireAdmin } from '../middleware/featureGate.ts';
+import { isUniqueConstraintError } from '../services/validation.ts';
 
 const createFeatureSchema = z.object({
   key: z
@@ -44,6 +45,21 @@ const updateUserSchema = z.object({
   isActive: z.boolean().optional(),
 });
 
+const atomicPermissionsSchema = z.object({
+  planId: z.number().int().positive(),
+  isActive: z.boolean().optional(),
+  overrides: z
+    .array(
+      z.object({
+        featureKey: z.string().min(1),
+        enabled: z.boolean().nullable(),
+        limitValue: z.number().int().min(0).nullable().optional(),
+        expiresAt: z.number().int().nullable().optional(),
+      })
+    )
+    .default([]),
+});
+
 const updatePlanFeatureSchema = z.object({
   enabled: z.boolean(),
   limitValue: z.number().int().min(0).nullable().optional(),
@@ -57,6 +73,25 @@ function toSlug(name: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 40);
+}
+
+async function wouldRemoveLastAdmin(
+  db: D1Database,
+  targetUserId: number,
+  currentlyAdmin: boolean,
+  willRemainAdmin: boolean
+): Promise<boolean> {
+  if (!currentlyAdmin || willRemainAdmin) return false;
+  const row = await db
+    .prepare(
+      `SELECT COUNT(*) AS total
+       FROM users u
+       JOIN plans p ON p.id = u.plan_id
+       WHERE u.is_active = 1 AND u.id != ? AND (u.role = 'admin' OR p.has_full_access = 1)`
+    )
+    .bind(targetUserId)
+    .first<{ total: number }>();
+  return (row?.total ?? 0) === 0;
 }
 
 export const adminRoutes = new Hono<AppEnv>();
@@ -114,13 +149,21 @@ adminRoutes.post('/profiles', async (c) => {
     return c.json({ error: 'Já existe um perfil com este nome ou slug.' }, 409);
   }
 
-  const inserted = await c.env.DB.prepare(
-    `INSERT INTO plans (slug, name, description, is_system, has_full_access)
-     VALUES (?, ?, ?, 0, ?)
-     RETURNING id`
-  )
-    .bind(slug, parsed.data.name, parsed.data.description, parsed.data.hasFullAccess ? 1 : 0)
-    .first<{ id: number }>();
+  let inserted: { id: number } | null = null;
+  try {
+    inserted = await c.env.DB.prepare(
+      `INSERT INTO plans (slug, name, description, is_system, has_full_access)
+       VALUES (?, ?, ?, 0, ?)
+       RETURNING id`
+    )
+      .bind(slug, parsed.data.name, parsed.data.description, parsed.data.hasFullAccess ? 1 : 0)
+      .first<{ id: number }>();
+  } catch (err) {
+    if (isUniqueConstraintError(err)) {
+      return c.json({ error: 'Já existe um perfil com este nome ou slug.' }, 409);
+    }
+    throw err;
+  }
 
   if (!inserted) {
     return c.json({ error: 'Falha ao criar perfil de acesso.' }, 500);
@@ -191,8 +234,11 @@ adminRoutes.delete('/profiles/:profileId', async (c) => {
 
   const registered = await c.env.DB.prepare("SELECT id FROM plans WHERE slug = 'registered'").first<{ id: number }>();
   const fallbackId = registered?.id ?? 1;
-  await c.env.DB.prepare('UPDATE users SET plan_id = ? WHERE plan_id = ?').bind(fallbackId, profileId).run();
-  await c.env.DB.prepare('DELETE FROM plans WHERE id = ?').bind(profileId).run();
+
+  await c.env.DB.batch([
+    c.env.DB.prepare('UPDATE users SET plan_id = ? WHERE plan_id = ?').bind(fallbackId, profileId),
+    c.env.DB.prepare('DELETE FROM plans WHERE id = ?').bind(profileId),
+  ]);
 
   return c.json({ ok: true });
 });
@@ -254,15 +300,21 @@ adminRoutes.patch('/users/:userId', async (c) => {
   const userId = Number(c.req.param('userId'));
   if (!Number.isInteger(userId)) return c.json({ error: 'Usuário inválido.' }, 400);
 
-  const existing = await c.env.DB.prepare('SELECT id, plan_id, role, is_active FROM users WHERE id = ?')
+  const existing = await c.env.DB.prepare(
+    `SELECT u.id, u.plan_id, u.role, u.is_active, p.has_full_access
+     FROM users u JOIN plans p ON p.id = u.plan_id
+     WHERE u.id = ?`
+  )
     .bind(userId)
-    .first<{ id: number; plan_id: number; role: string; is_active: number }>();
+    .first<{ id: number; plan_id: number; role: string; is_active: number; has_full_access: number }>();
   if (!existing) return c.json({ error: 'Usuário não encontrado.' }, 404);
 
   const parsed = updateUserSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: 'Dados inválidos.' }, 400);
 
   let nextRole = parsed.data.role ?? existing.role;
+  let nextFullAccess = existing.has_full_access === 1;
+
   if (parsed.data.planId !== undefined) {
     const targetProfile = await c.env.DB.prepare('SELECT id, slug, has_full_access FROM plans WHERE id = ?')
       .bind(parsed.data.planId)
@@ -271,22 +323,102 @@ adminRoutes.patch('/users/:userId', async (c) => {
     if (targetProfile.slug === 'anonymous') {
       return c.json({ error: 'O perfil Anônimo é exclusivo para visitantes não autenticados.' }, 400);
     }
+    nextFullAccess = targetProfile.has_full_access === 1;
     if (parsed.data.role === undefined) {
-      nextRole = targetProfile.has_full_access === 1 || targetProfile.slug === 'admin' ? 'admin' : 'user';
+      nextRole = nextFullAccess || targetProfile.slug === 'admin' ? 'admin' : 'user';
     }
+  }
+
+  const nextActive = parsed.data.isActive !== undefined ? parsed.data.isActive : existing.is_active === 1;
+  const currentlyAdmin = existing.is_active === 1 && (existing.role === 'admin' || existing.has_full_access === 1);
+  const willRemainAdmin = nextActive && (nextRole === 'admin' || nextFullAccess);
+
+  if (await wouldRemoveLastAdmin(c.env.DB, userId, currentlyAdmin, willRemainAdmin)) {
+    return c.json({ error: 'Não é possível remover ou desativar o único administrador ativo do sistema.' }, 400);
   }
 
   const now = Math.floor(Date.now() / 1000);
   await c.env.DB.prepare('UPDATE users SET plan_id = ?, role = ?, is_active = ?, updated_at = ? WHERE id = ?')
-    .bind(
-      parsed.data.planId ?? existing.plan_id,
-      nextRole,
-      parsed.data.isActive !== undefined ? (parsed.data.isActive ? 1 : 0) : existing.is_active,
-      now,
-      userId
-    )
+    .bind(parsed.data.planId ?? existing.plan_id, nextRole, nextActive ? 1 : 0, now, userId)
     .run();
 
+  return c.json({ ok: true });
+});
+
+adminRoutes.put('/users/:userId/permissions', async (c) => {
+  const userId = Number(c.req.param('userId'));
+  if (!Number.isInteger(userId)) return c.json({ error: 'Usuário inválido.' }, 400);
+
+  const existing = await c.env.DB.prepare(
+    `SELECT u.id, u.plan_id, u.role, u.is_active, p.has_full_access
+     FROM users u JOIN plans p ON p.id = u.plan_id
+     WHERE u.id = ?`
+  )
+    .bind(userId)
+    .first<{ id: number; plan_id: number; role: string; is_active: number; has_full_access: number }>();
+  if (!existing) return c.json({ error: 'Usuário não encontrado.' }, 404);
+
+  const parsed = atomicPermissionsSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) {
+    return c.json({ error: parsed.error.issues[0]?.message ?? 'Dados inválidos.' }, 400);
+  }
+
+  const targetProfile = await c.env.DB.prepare('SELECT id, slug, has_full_access FROM plans WHERE id = ?')
+    .bind(parsed.data.planId)
+    .first<{ id: number; slug: string; has_full_access: number }>();
+  if (!targetProfile) return c.json({ error: 'Perfil de acesso não encontrado.' }, 404);
+  if (targetProfile.slug === 'anonymous') {
+    return c.json({ error: 'O perfil Anônimo é exclusivo para visitantes não autenticados.' }, 400);
+  }
+
+  const nextRole = targetProfile.has_full_access === 1 || targetProfile.slug === 'admin' ? 'admin' : 'user';
+  const nextActive = parsed.data.isActive !== undefined ? parsed.data.isActive : existing.is_active === 1;
+  const currentlyAdmin = existing.is_active === 1 && (existing.role === 'admin' || existing.has_full_access === 1);
+  const willRemainAdmin = nextActive && (nextRole === 'admin' || targetProfile.has_full_access === 1);
+
+  if (await wouldRemoveLastAdmin(c.env.DB, userId, currentlyAdmin, willRemainAdmin)) {
+    return c.json({ error: 'Não é possível remover ou desativar o único administrador ativo do sistema.' }, 400);
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  const statements: D1PreparedStatement[] = [
+    c.env.DB.prepare('UPDATE users SET plan_id = ?, role = ?, is_active = ?, updated_at = ? WHERE id = ?').bind(
+      parsed.data.planId,
+      nextRole,
+      nextActive ? 1 : 0,
+      now,
+      userId
+    ),
+  ];
+
+  for (const ov of parsed.data.overrides) {
+    if (ov.enabled === null) {
+      statements.push(
+        c.env.DB.prepare('DELETE FROM user_feature_overrides WHERE user_id = ? AND feature_key = ?').bind(
+          userId,
+          ov.featureKey
+        )
+      );
+    } else {
+      statements.push(
+        c.env.DB.prepare(
+          `INSERT INTO user_feature_overrides (user_id, feature_key, enabled, limit_value, expires_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?)
+           ON CONFLICT(user_id, feature_key)
+           DO UPDATE SET enabled = excluded.enabled, limit_value = excluded.limit_value, expires_at = excluded.expires_at, updated_at = excluded.updated_at`
+        ).bind(
+          userId,
+          ov.featureKey,
+          ov.enabled ? 1 : 0,
+          ov.limitValue ?? null,
+          ov.expiresAt ?? null,
+          now
+        )
+      );
+    }
+  }
+
+  await c.env.DB.batch(statements);
   return c.json({ ok: true });
 });
 

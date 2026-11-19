@@ -9,9 +9,11 @@ export function createTestD1(): D1Database {
   const m1 = readFileSync(join(process.cwd(), 'migrations/0001_initial_links.sql'), 'utf8');
   const m2 = readFileSync(join(process.cwd(), 'migrations/0002_auth_features_dynamic.sql'), 'utf8');
   const m3 = readFileSync(join(process.cwd(), 'migrations/0003_access_profiles.sql'), 'utf8');
+  const m4 = readFileSync(join(process.cwd(), 'migrations/0004_hardening_and_indexes.sql'), 'utf8');
   sqlite.exec(m1);
   sqlite.exec(m2);
   sqlite.exec(m3);
+  sqlite.exec(m4);
 
   const makeStatement = (sql: string, bindings: unknown[] = []) => {
     const stmtObj = {

@@ -11,37 +11,37 @@ analyticsRoutes.get('/overview', requireFeature('analytics.basic'), async (c) =>
   const user = c.get('user')!;
   const since = Math.floor(Date.now() / 1000) - 30 * 86400;
 
-  const summary = await c.env.DB.prepare(
-    `SELECT
-      COUNT(*) AS totalLinks,
-      COALESCE(SUM(total_clicks), 0) AS totalClicks,
-      SUM(CASE WHEN mode = 'dynamic' THEN 1 ELSE 0 END) AS dynamicLinks
-     FROM links WHERE user_id = ?`
-  )
-    .bind(user.id)
-    .first<{ totalLinks: number; totalClicks: number; dynamicLinks: number }>();
-
-  const qrSummary = await c.env.DB.prepare(
-    `SELECT COUNT(*) AS totalQrCodes, COALESCE(SUM(scan_count), 0) AS totalScans
-     FROM qr_codes WHERE user_id = ?`
-  )
-    .bind(user.id)
-    .first<{ totalQrCodes: number; totalScans: number }>();
-
-  const { results: dailySeries } = await c.env.DB.prepare(
-    `SELECT
-      strftime('%Y-%m-%d', ce.clicked_at, 'unixepoch') AS day,
-      COUNT(*) AS total,
-      SUM(CASE WHEN ce.source = 'qr' THEN 1 ELSE 0 END) AS qrScans,
-      SUM(CASE WHEN ce.source = 'link' THEN 1 ELSE 0 END) AS linkClicks
-     FROM click_events ce
-     JOIN links l ON l.id = ce.link_id
-     WHERE l.user_id = ? AND ce.clicked_at >= ?
-     GROUP BY day
-     ORDER BY day ASC`
-  )
-    .bind(user.id, since)
-    .all();
+  const [summary, qrSummary, dailyRes] = await Promise.all([
+    c.env.DB.prepare(
+      `SELECT
+        COUNT(*) AS totalLinks,
+        COALESCE(SUM(total_clicks), 0) AS totalClicks,
+        SUM(CASE WHEN mode = 'dynamic' THEN 1 ELSE 0 END) AS dynamicLinks
+       FROM links WHERE user_id = ?`
+    )
+      .bind(user.id)
+      .first<{ totalLinks: number; totalClicks: number; dynamicLinks: number }>(),
+    c.env.DB.prepare(
+      `SELECT COUNT(*) AS totalQrCodes, COALESCE(SUM(scan_count), 0) AS totalScans
+       FROM qr_codes WHERE user_id = ?`
+    )
+      .bind(user.id)
+      .first<{ totalQrCodes: number; totalScans: number }>(),
+    c.env.DB.prepare(
+      `SELECT
+        strftime('%Y-%m-%d', ce.clicked_at, 'unixepoch') AS day,
+        COUNT(*) AS total,
+        SUM(CASE WHEN ce.source = 'qr' THEN 1 ELSE 0 END) AS qrScans,
+        SUM(CASE WHEN ce.source = 'link' THEN 1 ELSE 0 END) AS linkClicks
+       FROM click_events ce
+       JOIN links l ON l.id = ce.link_id
+       WHERE l.user_id = ? AND ce.clicked_at >= ?
+       GROUP BY day
+       ORDER BY day ASC`
+    )
+      .bind(user.id, since)
+      .all(),
+  ]);
 
   return c.json({
     summary: {
@@ -51,7 +51,7 @@ analyticsRoutes.get('/overview', requireFeature('analytics.basic'), async (c) =>
       totalQrCodes: qrSummary?.totalQrCodes ?? 0,
       totalScans: qrSummary?.totalScans ?? 0,
     },
-    dailySeries,
+    dailySeries: dailyRes.results,
   });
 });
 
@@ -69,40 +69,40 @@ analyticsRoutes.get('/links/:linkId', requireFeature('analytics.basic'), async (
   if (!link) return c.json({ error: 'Link não encontrado.' }, 404);
 
   const since = Math.floor(Date.now() / 1000) - 30 * 86400;
-
-  const totals = await c.env.DB.prepare(
-    `SELECT
-      COUNT(*) AS recordedEvents,
-      COUNT(DISTINCT ip_hash) AS uniqueVisitors,
-      SUM(CASE WHEN source = 'qr' THEN 1 ELSE 0 END) AS qrScans,
-      SUM(CASE WHEN source = 'link' THEN 1 ELSE 0 END) AS linkClicks
-     FROM click_events WHERE link_id = ?`
-  )
-    .bind(linkId)
-    .first();
-
-  const { results: dailySeries } = await c.env.DB.prepare(
-    `SELECT
-      strftime('%Y-%m-%d', clicked_at, 'unixepoch') AS day,
-      COUNT(*) AS total,
-      SUM(CASE WHEN source = 'qr' THEN 1 ELSE 0 END) AS qrScans,
-      SUM(CASE WHEN source = 'link' THEN 1 ELSE 0 END) AS linkClicks
-     FROM click_events
-     WHERE link_id = ? AND clicked_at >= ?
-     GROUP BY day
-     ORDER BY day ASC`
-  )
-    .bind(linkId, since)
-    .all();
-
-  const { results: byTarget } = await c.env.DB.prepare(
-    `SELECT id, label, target_url AS targetUrl, clicks_count AS clicksCount
-     FROM link_targets WHERE link_id = ? ORDER BY clicks_count DESC`
-  )
-    .bind(linkId)
-    .all();
-
   const detailedEnabled = hasFeature(features, 'analytics.detailed');
+
+  const [totals, dailyRes, byTargetRes] = await Promise.all([
+    c.env.DB.prepare(
+      `SELECT
+        COUNT(*) AS recordedEvents,
+        COUNT(DISTINCT ip_hash) AS uniqueVisitors,
+        SUM(CASE WHEN source = 'qr' THEN 1 ELSE 0 END) AS qrScans,
+        SUM(CASE WHEN source = 'link' THEN 1 ELSE 0 END) AS linkClicks
+       FROM click_events WHERE link_id = ?`
+    )
+      .bind(linkId)
+      .first(),
+    c.env.DB.prepare(
+      `SELECT
+        strftime('%Y-%m-%d', clicked_at, 'unixepoch') AS day,
+        COUNT(*) AS total,
+        SUM(CASE WHEN source = 'qr' THEN 1 ELSE 0 END) AS qrScans,
+        SUM(CASE WHEN source = 'link' THEN 1 ELSE 0 END) AS linkClicks
+       FROM click_events
+       WHERE link_id = ? AND clicked_at >= ?
+       GROUP BY day
+       ORDER BY day ASC`
+    )
+      .bind(linkId, since)
+      .all(),
+    c.env.DB.prepare(
+      `SELECT id, label, target_url AS targetUrl, clicks_count AS clicksCount
+       FROM link_targets WHERE link_id = ? ORDER BY clicks_count DESC`
+    )
+      .bind(linkId)
+      .all(),
+  ]);
+
   let detailed: Record<string, unknown> | null = null;
 
   if (detailedEnabled) {
@@ -151,8 +151,8 @@ analyticsRoutes.get('/links/:linkId', requireFeature('analytics.basic'), async (
   return c.json({
     link,
     totals,
-    dailySeries,
-    byTarget,
+    dailySeries: dailyRes.results,
+    byTarget: byTargetRes.results,
     detailedLocked: !detailedEnabled,
     detailed,
   });

@@ -1,6 +1,6 @@
 import { cors } from 'hono/cors';
 
-const ALLOWED_ORIGINS = new Set([
+export const ALLOWED_ORIGINS = new Set([
   'https://sa.api.br',
   'https://ue.ia.br',
   'http://localhost:5173',

@@ -3,8 +3,10 @@ import { deleteCookie, setCookie } from 'hono/cookie';
 import { z } from 'zod';
 import type { AppEnv } from '../types.ts';
 import { SESSION_COOKIE_NAME } from '../middleware/auth.ts';
+import { rateLimit } from '../middleware/rateLimit.ts';
 import { generateSessionToken, hashPassword, sha256Hex, verifyPassword } from '../services/crypto.ts';
-import { resolveUserFeatures } from '../services/entitlements.ts';
+import { resolveAnonymousFeatures, resolveUserFeatures } from '../services/entitlements.ts';
+import { isUniqueConstraintError } from '../services/validation.ts';
 
 const registerSchema = z.object({
   name: z.string().trim().min(2, 'Nome deve ter ao menos 2 caracteres.').max(100),
@@ -30,7 +32,26 @@ function setSessionCookie(c: Parameters<typeof setCookie>[0], rawToken: string, 
   });
 }
 
+function scheduleExpiredSessionCleanup(
+  db: D1Database,
+  c: { executionCtx: { waitUntil: (promise: Promise<unknown>) => void } }
+) {
+  const now = Math.floor(Date.now() / 1000);
+  const cleanup = db
+    .prepare('DELETE FROM sessions WHERE expires_at <= ?')
+    .bind(now)
+    .run()
+    .catch(() => {});
+  try {
+    c.executionCtx.waitUntil(cleanup);
+  } catch {
+    // Ignore in test environments without ExecutionContext
+  }
+}
+
 export const authRoutes = new Hono<AppEnv>();
+
+const authRateLimit = rateLimit({ scope: 'auth', maxRequests: 10, windowSeconds: 60 });
 
 authRoutes.get('/me', (c) => {
   return c.json({
@@ -39,7 +60,7 @@ authRoutes.get('/me', (c) => {
   });
 });
 
-authRoutes.post('/register', async (c) => {
+authRoutes.post('/register', authRateLimit, async (c) => {
   const parsed = registerSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) {
     return c.json({ error: parsed.error.issues[0]?.message ?? 'Dados inválidos.' }, 400);
@@ -65,13 +86,21 @@ authRoutes.post('/register', async (c) => {
 
   const passwordHash = await hashPassword(parsed.data.password);
 
-  const inserted = await c.env.DB.prepare(
-    `INSERT INTO users (email, password_hash, name, role, plan_id)
-     VALUES (?, ?, ?, ?, ?)
-     RETURNING id`
-  )
-    .bind(email, passwordHash, parsed.data.name, role, planId)
-    .first<{ id: number }>();
+  let inserted: { id: number } | null = null;
+  try {
+    inserted = await c.env.DB.prepare(
+      `INSERT INTO users (email, password_hash, name, role, plan_id)
+       VALUES (?, ?, ?, ?, ?)
+       RETURNING id`
+    )
+      .bind(email, passwordHash, parsed.data.name, role, planId)
+      .first<{ id: number }>();
+  } catch (err) {
+    if (isUniqueConstraintError(err)) {
+      return c.json({ error: 'E-mail já cadastrado.' }, 409);
+    }
+    throw err;
+  }
 
   if (!inserted) {
     return c.json({ error: 'Falha ao criar usuário.' }, 500);
@@ -109,7 +138,7 @@ authRoutes.post('/register', async (c) => {
   );
 });
 
-authRoutes.post('/login', async (c) => {
+authRoutes.post('/login', authRateLimit, async (c) => {
   const parsed = loginSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) {
     return c.json({ error: parsed.error.issues[0]?.message ?? 'Credenciais inválidas.' }, 400);
@@ -154,6 +183,8 @@ authRoutes.post('/login', async (c) => {
     .bind(sessionId, row.id, tokenHash, expiresAt)
     .run();
 
+  scheduleExpiredSessionCleanup(c.env.DB, c);
+
   const features = await resolveUserFeatures(c.env.DB, row.id, row.plan_id);
   setSessionCookie(c, rawToken, c.req.url);
 
@@ -179,6 +210,8 @@ authRoutes.post('/logout', async (c) => {
   if (sessionId) {
     await c.env.DB.prepare('DELETE FROM sessions WHERE id = ?').bind(sessionId).run();
   }
+  scheduleExpiredSessionCleanup(c.env.DB, c);
   deleteCookie(c, SESSION_COOKIE_NAME, { path: '/' });
-  return c.json({ ok: true });
+  const features = await resolveAnonymousFeatures(c.env.DB);
+  return c.json({ ok: true, features });
 });

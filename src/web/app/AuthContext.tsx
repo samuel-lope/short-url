@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import type { FeatureMap, UserProfile } from '../../shared/contracts.ts';
-import { apiRequest } from '../lib/api.ts';
+import { apiRequest, setUnauthorizedHandler } from '../lib/api.ts';
 
 interface AuthContextValue {
   user: UserProfile | null;
@@ -38,6 +38,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void refreshSession();
   }, [refreshSession]);
 
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      void refreshSession();
+    });
+    return () => setUnauthorizedHandler(null);
+  }, [refreshSession]);
+
   const login = useCallback(async (email: string, password: string) => {
     const data = await apiRequest<{ user: UserProfile; features: FeatureMap }>('/api/auth/login', {
       method: 'POST',
@@ -57,10 +64,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
-    await apiRequest('/api/auth/logout', { method: 'POST' });
+    const data = await apiRequest<{ ok: boolean; features?: FeatureMap }>('/api/auth/logout', {
+      method: 'POST',
+    });
     setUser(null);
-    setFeatures({});
-  }, []);
+    if (data.features) {
+      setFeatures(data.features);
+    } else {
+      await refreshSession();
+    }
+  }, [refreshSession]);
 
   const hasFeature = useCallback((key: string) => Boolean(features[key]?.enabled), [features]);
   const getFeatureLimit = useCallback((key: string) => features[key]?.limit ?? null, [features]);

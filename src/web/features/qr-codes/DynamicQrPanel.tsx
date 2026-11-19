@@ -1,5 +1,4 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import QRCode from 'qrcode';
 import { Download, Save } from 'lucide-react';
 import type { QrStyle } from '../../../shared/contracts.ts';
 import { apiRequest } from '../../lib/api.ts';
@@ -48,6 +47,7 @@ export function DynamicQrPanel({ linkId, qrUrl, shortCode, initialQr, onSaved }:
     let cancelled = false;
     async function renderQr() {
       try {
+        const QRCode = (await import('qrcode')).default;
         const [pngUrl, svg] = await Promise.all([
           QRCode.toDataURL(qrUrl, {
             width: 320,
