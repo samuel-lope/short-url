@@ -1,5 +1,14 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Layers, Plus, Settings2, Shield, Sparkles, Trash2, Users } from 'lucide-react';
+import type {
+  AdminOverview,
+  FeatureItem,
+  OverrideItem,
+  OverrideValue,
+  PlanFeatureItem,
+  ProfileItem,
+  UserItem,
+} from '../../../shared/contracts.ts';
 import { apiRequest } from '../../lib/api.ts';
 import { useAuth } from '../../app/AuthContext.tsx';
 import { Modal } from '../../shared/Modal.tsx';
@@ -16,57 +25,6 @@ import {
   TextInput,
   Tile,
 } from '../../shared/ui/index.ts';
-
-interface ProfileItem {
-  id: number;
-  slug: string;
-  name: string;
-  description: string;
-  isSystem: boolean;
-  hasFullAccess: boolean;
-}
-
-interface FeatureItem {
-  key: string;
-  name: string;
-  description: string;
-  category: string;
-  defaultEnabled: boolean;
-}
-
-interface PlanFeatureItem {
-  planId: number;
-  featureKey: string;
-  enabled: boolean;
-  limitValue: number | null;
-}
-
-interface UserItem {
-  id: number;
-  email: string;
-  name: string;
-  role: 'user' | 'admin';
-  planId: number;
-  planName: string;
-  isActive: boolean;
-}
-
-interface OverrideItem {
-  userId: number;
-  featureKey: string;
-  enabled: boolean;
-  limitValue: number | null;
-}
-
-interface AdminOverview {
-  plans: ProfileItem[];
-  features: FeatureItem[];
-  planFeatures: PlanFeatureItem[];
-  users: UserItem[];
-  overrides: OverrideItem[];
-}
-
-type OverrideValue = 'inherit' | 'allow' | 'deny';
 
 export function AdminPage() {
   const { refreshSession } = useAuth();
@@ -91,8 +49,10 @@ export function AdminPage() {
   // U1/U2: User edit dialog state (explicit Save button)
   const [editingUser, setEditingUser] = useState<UserItem | null>(null);
   const [draftPlanId, setDraftPlanId] = useState<number>(1);
+  const [draftIsActive, setDraftIsActive] = useState<boolean>(true);
   const [draftOverrides, setDraftOverrides] = useState<Record<string, OverrideValue>>({});
   const [savingUser, setSavingUser] = useState(false);
+  const [busyCellKey, setBusyCellKey] = useState<string | null>(null);
 
   // F8: Create Feature
   const [newKey, setNewKey] = useState('');
@@ -194,9 +154,10 @@ export function AdminPage() {
     if (!data) return;
     setEditingUser(user);
     setDraftPlanId(user.planId);
+    setDraftIsActive(user.isActive);
     const initialOverrides: Record<string, OverrideValue> = {};
     for (const f of data.features) {
-      const ov = data.overrides.find((o) => o.userId === user.id && o.featureKey === f.key);
+      const ov = data.overrides.find((o: OverrideItem) => o.userId === user.id && o.featureKey === f.key);
       initialOverrides[f.key] = ov ? (ov.enabled ? 'allow' : 'deny') : 'inherit';
     }
     setDraftOverrides(initialOverrides);
@@ -211,9 +172,9 @@ export function AdminPage() {
 
     try {
       const overridesPayload = data.features
-        .map((f) => {
+        .map((f: FeatureItem) => {
           const prevOv = data.overrides.find(
-            (o) => o.userId === editingUser.id && o.featureKey === f.key
+            (o: OverrideItem) => o.userId === editingUser.id && o.featureKey === f.key
           );
           const prevVal: OverrideValue = prevOv ? (prevOv.enabled ? 'allow' : 'deny') : 'inherit';
           const nextVal = draftOverrides[f.key] ?? 'inherit';
@@ -229,6 +190,7 @@ export function AdminPage() {
         method: 'PUT',
         body: JSON.stringify({
           planId: draftPlanId,
+          isActive: draftIsActive,
           overrides: overridesPayload,
         }),
       });
@@ -250,6 +212,8 @@ export function AdminPage() {
     enabled: boolean,
     limitValue: number | null
   ) => {
+    const cellKey = `${planId}:${featureKey}`;
+    setBusyCellKey(cellKey);
     setError(null);
     setStatusMsg(null);
     try {
@@ -261,6 +225,8 @@ export function AdminPage() {
       await refreshSession();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao atualizar permissão do perfil.');
+    } finally {
+      setBusyCellKey(null);
     }
   };
 
@@ -283,12 +249,12 @@ export function AdminPage() {
       />
 
       {error && (
-        <div style={{ marginBottom: '1rem' }}>
+        <div className="mb-md">
           <Alert tone="error">{error}</Alert>
         </div>
       )}
       {statusMsg && (
-        <div style={{ marginBottom: '1rem' }}>
+        <div className="mb-md">
           <Alert tone="success" role="status">
             {statusMsg}
           </Alert>
@@ -334,7 +300,7 @@ export function AdminPage() {
               </Field>
             </div>
 
-            <label className="choice-pill" style={{ width: 'fit-content' }}>
+            <label className="choice-pill fit-content">
               <input
                 type="checkbox"
                 checked={profileFullAccess}
@@ -371,29 +337,17 @@ export function AdminPage() {
         </Tile>
 
         <Tile c={2} variant="muted" title="Perfis cadastrados" subtitle="Perfis de sistema são protegidos contra remoção">
-          <div style={{ display: 'grid', gap: '0.65rem' }}>
+          <div className="stack-sm">
             {data.plans.map((p) => (
-              <div
-                key={p.id}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: '0.75rem',
-                  padding: '0.75rem 0.9rem',
-                  borderRadius: 'var(--radius-control)',
-                  border: '1px solid var(--border)',
-                  background: 'var(--surface)',
-                }}
-              >
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.4rem' }}>
+              <div key={p.id} className="list-card">
+                <div className="min-w-0">
+                  <div className="cluster-xs">
                     <strong>{p.name}</strong>
                     {p.isSystem && <Badge>Sistema</Badge>}
                     {p.hasFullAccess && <Badge tone="accent">Acesso total</Badge>}
                   </div>
                   {p.description && (
-                    <div className="text-muted" style={{ fontSize: '0.82rem', marginTop: '0.15rem' }}>
+                    <div className="text-muted meta-text-xs">
                       {p.description}
                     </div>
                   )}
@@ -429,7 +383,7 @@ export function AdminPage() {
                   <tr key={f.key}>
                     <th scope="row">
                       <div>{f.name}</div>
-                      <div className="mono-url text-muted" style={{ fontSize: '0.78rem', fontWeight: 400 }}>
+                      <div className="mono-url text-muted meta-text-xs">
                         {f.key}
                       </div>
                     </th>
@@ -441,19 +395,26 @@ export function AdminPage() {
                           </td>
                         );
                       }
-                      const pf = data.planFeatures.find((x) => x.planId === p.id && x.featureKey === f.key);
+                      const pf = data.planFeatures.find(
+                        (x: PlanFeatureItem) => x.planId === p.id && x.featureKey === f.key
+                      );
                       const isEnabled = pf ? pf.enabled : f.defaultEnabled;
+                      const cellKey = `${p.id}:${f.key}`;
+                      const isBusy = busyCellKey === cellKey;
                       return (
                         <td key={p.id} data-label={p.name}>
                           <Button
                             size="sm"
                             variant={isEnabled ? 'primary' : 'secondary'}
+                            disabled={isBusy}
                             onClick={() =>
                               handlePlanFeatureToggle(p.id, f.key, !isEnabled, pf?.limitValue ?? null)
                             }
                           >
-                            {isEnabled ? 'Ativo' : 'Bloqueado'}
-                            {pf?.limitValue !== null && pf?.limitValue !== undefined ? ` (${pf.limitValue})` : ''}
+                            {isBusy ? 'Salvando...' : isEnabled ? 'Ativo' : 'Bloqueado'}
+                            {!isBusy && pf?.limitValue !== null && pf?.limitValue !== undefined
+                              ? ` (${pf.limitValue})`
+                              : ''}
                           </Button>
                         </td>
                       );
@@ -482,8 +443,11 @@ export function AdminPage() {
                   return (
                     <tr key={u.id}>
                       <th scope="row">
-                        <div>{u.name}</div>
-                        <div className="text-muted" style={{ fontSize: '0.8rem', fontWeight: 400 }}>
+                        <div className="cluster-xs">
+                          <span>{u.name}</span>
+                          {!u.isActive && <Badge tone="danger">Inativa</Badge>}
+                        </div>
+                        <div className="text-muted meta-text-xs">
                           {u.email}
                         </div>
                       </th>
@@ -492,11 +456,11 @@ export function AdminPage() {
                       </td>
                       <td data-label="Overrides">
                         {userOverrides.length === 0 ? (
-                          <span className="text-muted" style={{ fontSize: '0.84rem' }}>
+                          <span className="text-muted meta-text">
                             Herdado do perfil
                           </span>
                         ) : (
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem' }}>
+                          <div className="cluster-xs">
                             {userOverrides.map((ov) => (
                               <Badge key={ov.featureKey} tone={ov.enabled ? 'success' : 'danger'}>
                                 {ov.featureKey}: {ov.enabled ? 'Liberado' : 'Bloqueado'}
@@ -573,7 +537,7 @@ export function AdminPage() {
           title="Como funcionam as liberações"
           subtitle="Ordem de resolução aplicada no servidor e no React"
         >
-          <ol style={{ margin: 0, paddingLeft: '1.2rem', display: 'grid', gap: '0.45rem', fontSize: '0.9rem' }}>
+          <ol className="ordered-guide">
             <li>Override explícito do usuário (Liberar ou Bloquear).</li>
             <li>Perfil com acesso total (<code>Admin</code>) libera tudo automaticamente.</li>
             <li>Permissão definida na matriz do perfil atribuído ao usuário.</li>
@@ -587,10 +551,10 @@ export function AdminPage() {
         title="Excluir perfil de acesso?"
         onClose={() => setProfileToDelete(null)}
       >
-        <p style={{ marginTop: 0 }}>
+        <p className="mt-none">
           Usuários atualmente no perfil <strong>{profileToDelete?.name}</strong> serão movidos para o perfil padrão <strong>Usuário Registrado</strong>.
         </p>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.6rem' }}>
+        <div className="modal-actions">
           <Button size="sm" autoFocus onClick={() => setProfileToDelete(null)}>
             Cancelar
           </Button>
@@ -607,7 +571,7 @@ export function AdminPage() {
       >
         {editingUser && (
           <form className="form-stack" onSubmit={handleSaveUserChanges}>
-            <div className="text-muted" style={{ fontSize: '0.88rem' }}>
+            <div className="text-muted meta-text">
               {editingUser.email}
             </div>
 
@@ -627,29 +591,27 @@ export function AdminPage() {
               )}
             </Field>
 
-            <div style={{ display: 'grid', gap: '0.65rem', maxBlockSize: '42dvh', overflowY: 'auto', paddingInlineEnd: '0.25rem' }}>
+            <label className="choice-pill fit-content">
+              <input
+                type="checkbox"
+                checked={draftIsActive}
+                onChange={(e) => setDraftIsActive(e.target.checked)}
+              />
+              <span>Conta ativa</span>
+            </label>
+
+            <div className="scroll-list">
               {data.features.map((f) => (
-                <div
-                  key={f.key}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '0.75rem',
-                    padding: '0.55rem 0.75rem',
-                    border: '1px solid var(--border)',
-                    borderRadius: 'var(--radius-control)',
-                  }}
-                >
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>{f.name}</div>
-                    <div className="mono-url text-muted" style={{ fontSize: '0.75rem' }}>
+                <div key={f.key} className="list-card">
+                  <div className="min-w-0">
+                    <div className="meta-strong">{f.name}</div>
+                    <div className="mono-url text-muted meta-text-xs">
                       {f.key}
                     </div>
                   </div>
                   <SelectInput
                     aria-label={`${f.key} para ${editingUser.email}`}
-                    style={{ width: 'auto', minWidth: '8.5rem', minBlockSize: 40 }}
+                    className="select--compact"
                     value={draftOverrides[f.key] ?? 'inherit'}
                     onChange={(e) =>
                       setDraftOverrides((prev) => ({
@@ -666,7 +628,7 @@ export function AdminPage() {
               ))}
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.6rem' }}>
+            <div className="modal-actions">
               <Button size="sm" onClick={() => setEditingUser(null)}>
                 Cancelar
               </Button>

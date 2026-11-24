@@ -1,6 +1,15 @@
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, BarChart3, ChevronDown, QrCode, Shuffle, Sparkles } from 'lucide-react';
+import {
+  ArrowRight,
+  BarChart3,
+  ChevronDown,
+  ExternalLink,
+  QrCode,
+  Shuffle,
+  Sparkles,
+} from 'lucide-react';
+import type { ShortenResponse } from '../../../shared/contracts.ts';
 import { useAuth } from '../../app/AuthContext.tsx';
 import { apiRequest } from '../../lib/api.ts';
 import { CopyButton } from '../../shared/CopyButton.tsx';
@@ -17,14 +26,6 @@ import {
   Tile,
 } from '../../shared/ui/index.ts';
 
-interface ShortenResponse {
-  id: number;
-  short_code: string;
-  short_url: string;
-  original_url: string;
-  mode?: 'static' | 'dynamic';
-}
-
 export function PublicHomePage() {
   const { user, features, hasFeature } = useAuth();
   const [url, setUrl] = useState('');
@@ -35,7 +36,18 @@ export function PublicHomePage() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ShortenResponse | null>(null);
 
+  const longUrlRef = useRef<HTMLInputElement>(null);
+
   const enabledCount = Object.values(features).filter((f) => f.enabled).length;
+
+  const handleReset = () => {
+    setUrl('');
+    setTitle('');
+    setCustomSlug('');
+    setResult(null);
+    setError(null);
+    longUrlRef.current?.focus();
+  };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -75,7 +87,7 @@ export function PublicHomePage() {
   return (
     <BentoGrid cols={4} label="Encurtador de URLs">
       <Tile c={3} r={2} as="section" aria-labelledby="home-title">
-        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+        <div className="cluster-between">
           <Badge tone="accent">
             <Sparkles size={13} aria-hidden="true" />
             <span>Short API · sa.api.br / ue.ia.br</span>
@@ -89,7 +101,7 @@ export function PublicHomePage() {
           <h1 id="home-title" className="hero-title">
             Links curtos, dinâmicos e mensuráveis.
           </h1>
-          <p className="text-muted" style={{ margin: '0.5rem 0 0', maxWidth: '54ch' }}>
+          <p className="text-muted lead-text">
             Encurte uma URL instantaneamente ou entre para gerenciar destinos dinâmicos, QR Codes editáveis e registro de uso.
           </p>
         </div>
@@ -108,6 +120,7 @@ export function PublicHomePage() {
             <Field label="URL de destino" htmlFor="long-url" hint="Inclua http:// ou https://" required>
               {({ inputId, describedBy }) => (
                 <TextInput
+                  ref={longUrlRef}
                   id={inputId}
                   name="url"
                   type="url"
@@ -168,17 +181,24 @@ export function PublicHomePage() {
                         hint="3 a 40 caracteres: letras, números, - ou _"
                       >
                         {({ inputId, describedBy }) => (
-                          <TextInput
-                            id={inputId}
-                            name="customSlug"
-                            type="text"
-                            placeholder="promo-natal"
-                            spellCheck={false}
-                            autoCapitalize="none"
-                            aria-describedby={describedBy}
-                            value={customSlug}
-                            onChange={(e) => setCustomSlug(e.target.value)}
-                          />
+                          <>
+                            <TextInput
+                              id={inputId}
+                              name="customSlug"
+                              type="text"
+                              placeholder="promo-natal"
+                              spellCheck={false}
+                              autoCapitalize="none"
+                              aria-describedby={describedBy}
+                              value={customSlug}
+                              onChange={(e) => setCustomSlug(e.target.value)}
+                            />
+                            {customSlug.trim() && (
+                              <div className="slug-preview">
+                                {window.location.origin}/{customSlug.trim()}
+                              </div>
+                            )}
+                          </>
                         )}
                       </Field>
                     </FeatureGate>
@@ -203,10 +223,10 @@ export function PublicHomePage() {
         title={user ? user.name : 'Perfil Anônimo'}
         subtitle={user ? `Perfil ativo: ${user.plan.name}` : 'Encurtamento rápido sem cadastro'}
       >
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+        <div className="cluster-xs">
           <Badge tone="accent">{enabledCount} recursos ativos</Badge>
         </div>
-        <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+        <div className="push-end stack-sm">
           {user ? (
             hasFeature('links.manage_own') && (
               <ButtonLink to="/app" variant="secondary" size="sm">
@@ -228,33 +248,37 @@ export function PublicHomePage() {
       </Tile>
 
       <Tile c={1} variant="muted" title="Sem expiração" subtitle="Compatível com links legados Hashids e redirecionamento 302 com tracking.">
-        <div style={{ marginTop: 'auto' }}>
+        <div className="push-end">
           <Badge>Edge D1</Badge>
         </div>
       </Tile>
 
       {result && (
         <Tile c={4} title="Link curto pronto" aria-live="polite">
-          <div
-            style={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '0.85rem',
-            }}
-          >
-            <a href={result.short_url} target="_blank" rel="noreferrer" className="mono-url" style={{ fontSize: '1.1rem', fontWeight: 700 }}>
+          <div className="cluster-between">
+            <a href={result.short_url} target="_blank" rel="noreferrer" className="mono-url url-featured">
               {result.short_url}
             </a>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+            <div className="cluster">
               <CopyButton text={result.short_url} label="Copiar link" />
+              <a
+                className="btn btn--sm"
+                href={result.short_url}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <ExternalLink size={14} aria-hidden="true" />
+                <span>Abrir link</span>
+              </a>
               {user && result.id && (
                 <ButtonLink to={`/app/links/${result.id}`} variant="primary" size="sm">
                   <span>Gerenciar QR / Dinâmico / Uso</span>
                   <ArrowRight size={15} aria-hidden="true" />
                 </ButtonLink>
               )}
+              <Button size="sm" onClick={handleReset}>
+                Encurtar outro
+              </Button>
             </div>
           </div>
         </Tile>
@@ -263,13 +287,13 @@ export function PublicHomePage() {
       {!user && (
         <>
           <Tile c={1} title="URL Dinâmica" subtitle="Troque o destino do mesmo short link a qualquer momento ou aplique regras.">
-            <div style={{ marginTop: 'auto', color: 'var(--accent)' }}>
+            <div className="push-end accent-icon">
               <Shuffle size={22} aria-hidden="true" />
             </div>
           </Tile>
 
           <Tile c={1} title="QR Dinâmico" subtitle="Personalize cores e exporte PNG ou SVG sem alterar o código impresso.">
-            <div style={{ marginTop: 'auto', color: 'var(--accent)' }}>
+            <div className="push-end accent-icon">
               <QrCode size={22} aria-hidden="true" />
             </div>
           </Tile>
@@ -281,7 +305,7 @@ export function PublicHomePage() {
             subtitle="Acompanhe cliques, scans de QR, visitantes únicos, países, dispositivos e origens."
             action={<BarChart3 size={22} aria-hidden="true" />}
           >
-            <div style={{ marginTop: 'auto', display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+            <div className="push-end cluster">
               <Link to="/register" className="btn btn--sm btn--on-accent">
                 <span>Começar agora</span>
                 <ArrowRight size={15} aria-hidden="true" />

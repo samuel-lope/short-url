@@ -217,7 +217,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
           </Button>
         </form>
 
-        <p className="text-muted" style={{ margin: '0.25rem 0 0', fontSize: '0.9rem' }}>
+        <p className="text-muted meta-text m-0">
           {isRegister ? (
             <>
               Já tem conta? <Link to="/login">Entrar</Link>
@@ -236,16 +236,16 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
         title="Controle total sobre seus links"
         subtitle="Ao entrar com seu perfil de Usuário Registrado você gerencia URLs, destinos dinâmicos, QR Codes e métricas."
       >
-        <ul style={{ margin: '0.5rem 0 0', paddingLeft: '1.15rem', display: 'grid', gap: '0.75rem', fontSize: '0.92rem' }}>
-          <li style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+        <ul className="feature-list">
+          <li className="feature-list-item">
             <Shuffle size={17} aria-hidden="true" />
             <span>Troca instantânea de destino sem mudar o short link</span>
           </li>
-          <li style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+          <li className="feature-list-item">
             <QrCode size={17} aria-hidden="true" />
             <span>QR Code dinâmico personalizável em SVG e PNG</span>
           </li>
-          <li style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+          <li className="feature-list-item">
             <BarChart3 size={17} aria-hidden="true" />
             <span>Registro de uso por dia, dispositivo, país e origem</span>
           </li>
