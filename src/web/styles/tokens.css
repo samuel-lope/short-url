@@ -15,8 +15,16 @@
   /* Single primary brand accent (Indigo) */
   --accent: #4f46e5;
   --accent-hover: #4338ca;
+  --accent-ink: #4f46e5;
   --accent-soft: #eef2ff;
+  --accent-border: rgb(79 70 229 / 0.22);
+  --accent-ring: rgb(79 70 229 / 0.16);
   --on-accent: #ffffff;
+  --on-accent-muted: rgb(255 255 255 / 0.85);
+
+  /* Chrome & overlay surfaces */
+  --topbar-bg: rgb(255 255 255 / 0.88);
+  --backdrop-bg: rgb(28 25 23 / 0.45);
 
   /* Status colors (paired with icons/text) */
   --success: #15803d;
@@ -45,4 +53,94 @@
   --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   --fs-display: clamp(1.75rem, 1.35rem + 1.5vw, 2.5rem);
   --fs-h1: clamp(1.4rem, 1.15rem + 0.9vw, 1.85rem);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+
+    /* Surfaces */
+    --bg: #0c0a09;
+    --surface: #1c1917;
+    --surface-muted: #292524;
+    --border: #2e2927;
+    --border-strong: #57534e;
+
+    /* Typography colors */
+    --text: #fafaf9;
+    --text-muted: #a8a29e;
+
+    /* Single primary brand accent (Indigo) */
+    --accent: #4f46e5;
+    --accent-hover: #4338ca;
+    --accent-ink: #a5b4fc;
+    --accent-soft: rgb(99 102 241 / 0.16);
+    --accent-border: rgb(129 140 248 / 0.32);
+    --accent-ring: rgb(129 140 248 / 0.28);
+    --on-accent: #ffffff;
+    --on-accent-muted: rgb(255 255 255 / 0.88);
+
+    /* Chrome & overlay surfaces */
+    --topbar-bg: rgb(28 25 23 / 0.85);
+    --backdrop-bg: rgb(0 0 0 / 0.65);
+
+    /* Status colors (paired with icons/text) */
+    --success: #4ade80;
+    --success-soft: rgb(22 163 74 / 0.16);
+    --success-border: rgb(74 222 128 / 0.3);
+    --danger: #f87171;
+    --danger-soft: rgb(220 38 38 / 0.16);
+    --danger-border: rgb(248 113 113 / 0.3);
+    --warning: #facc15;
+    --warning-soft: rgb(202 138 4 / 0.16);
+    --warning-border: rgb(250 204 21 / 0.3);
+
+    /* Elevation */
+    --shadow-tile: 0 1px 2px rgb(0 0 0 / 0.35), 0 1px 1px rgb(0 0 0 / 0.25);
+    --shadow-dialog: 0 20px 45px rgb(0 0 0 / 0.55);
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  /* Surfaces */
+  --bg: #0c0a09;
+  --surface: #1c1917;
+  --surface-muted: #292524;
+  --border: #2e2927;
+  --border-strong: #57534e;
+
+  /* Typography colors */
+  --text: #fafaf9;
+  --text-muted: #a8a29e;
+
+  /* Single primary brand accent (Indigo) */
+  --accent: #4f46e5;
+  --accent-hover: #4338ca;
+  --accent-ink: #a5b4fc;
+  --accent-soft: rgb(99 102 241 / 0.16);
+  --accent-border: rgb(129 140 248 / 0.32);
+  --accent-ring: rgb(129 140 248 / 0.28);
+  --on-accent: #ffffff;
+  --on-accent-muted: rgb(255 255 255 / 0.88);
+
+  /* Chrome & overlay surfaces */
+  --topbar-bg: rgb(28 25 23 / 0.85);
+  --backdrop-bg: rgb(0 0 0 / 0.65);
+
+  /* Status colors (paired with icons/text) */
+  --success: #4ade80;
+  --success-soft: rgb(22 163 74 / 0.16);
+  --success-border: rgb(74 222 128 / 0.3);
+  --danger: #f87171;
+  --danger-soft: rgb(220 38 38 / 0.16);
+  --danger-border: rgb(248 113 113 / 0.3);
+  --warning: #facc15;
+  --warning-soft: rgb(202 138 4 / 0.16);
+  --warning-border: rgb(250 204 21 / 0.3);
+
+  /* Elevation */
+  --shadow-tile: 0 1px 2px rgb(0 0 0 / 0.35), 0 1px 1px rgb(0 0 0 / 0.25);
+  --shadow-dialog: 0 20px 45px rgb(0 0 0 / 0.55);
 }

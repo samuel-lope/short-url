@@ -32,7 +32,7 @@ export function Alert({
 
   return (
     <div className={`alert alert--${tone}`} role={role ?? (tone === 'error' ? 'alert' : 'status')}>
-      <Icon size={18} aria-hidden="true" style={{ flexShrink: 0, marginTop: '0.1rem' }} />
+      <Icon size={18} aria-hidden="true" className="alert-icon" />
       <div>{children}</div>
     </div>
   );
@@ -53,7 +53,7 @@ export function PageHeader({
         <h1 className="page-title">{title}</h1>
         {subtitle && <p className="page-subtitle">{subtitle}</p>}
       </div>
-      {actions && <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>{actions}</div>}
+      {actions && <div className="cluster">{actions}</div>}
     </header>
   );
 }
@@ -72,8 +72,8 @@ export function EmptyState({
   return (
     <div className="empty-state">
       {icon}
-      <strong style={{ color: 'var(--text)' }}>{title}</strong>
-      {description && <span style={{ fontSize: '0.9rem', maxWidth: '42ch' }}>{description}</span>}
+      <strong className="empty-state-title">{title}</strong>
+      {description && <span className="empty-state-desc">{description}</span>}
       {action}
     </div>
   );
@@ -81,9 +81,9 @@ export function EmptyState({
 
 export function Skeleton({ rows = 3 }: { rows?: number }) {
   return (
-    <div aria-busy="true" aria-label="Carregando conteúdo" style={{ display: 'grid', gap: '0.75rem' }}>
+    <div aria-busy="true" aria-label="Carregando conteúdo" className="skeleton-stack">
       {Array.from({ length: rows }).map((_, i) => (
-        <div key={i} className="skeleton-block" style={{ width: i === 0 ? '55%' : '100%' }} />
+        <div key={i} className={i === 0 ? 'skeleton-block skeleton-block--short' : 'skeleton-block'} />
       ))}
     </div>
   );

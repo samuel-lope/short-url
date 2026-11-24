@@ -14,14 +14,14 @@ export function LockedFeatureNotice({
 }) {
   return (
     <Tile c={4} variant="warning" as="div" aria-label={title}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 700 }}>
+      <div className="cluster-between">
+        <div className="notice-title">
           <Lock size={17} aria-hidden="true" />
           <span>{title}</span>
         </div>
         <Badge tone="warning">{feature}</Badge>
       </div>
-      <p className="text-muted" style={{ margin: 0, fontSize: '0.88rem' }}>
+      <p className="text-muted m-0 meta-text">
         {description ?? `A funcionalidade "${feature}" ainda não está habilitada para sua conta.`}
       </p>
     </Tile>

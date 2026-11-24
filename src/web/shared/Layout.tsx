@@ -1,19 +1,59 @@
+import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, LogOut, Shield, Sparkles } from 'lucide-react';
+import { LayoutDashboard, LogOut, Moon, Shield, Sparkles, Sun } from 'lucide-react';
 import { useAuth } from '../app/AuthContext.tsx';
 import { Badge, Button, ButtonLink } from './ui/index.ts';
+
+type Theme = 'light' | 'dark';
+
+const THEME_STORAGE_KEY = 'shorturl_theme';
+
+function getInitialTheme(): Theme {
+  try {
+    const saved = localStorage.getItem(THEME_STORAGE_KEY);
+    if (saved === 'light' || saved === 'dark') {
+      return saved;
+    }
+  } catch {
+    // Ignore storage access restrictions
+  }
+  if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+  return 'light';
+}
 
 export function Layout() {
   const { user, logout, hasFeature } = useAuth();
   const navigate = useNavigate();
+  const [theme, setTheme] = useState<Theme>(getInitialTheme);
   const isAdmin = Boolean(
     user && (user.role === 'admin' || user.plan.hasFullAccess || hasFeature('admin.profiles'))
   );
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, theme);
+    } catch {
+      // Ignore storage access restrictions
+    }
+    const themeColorMeta = document.querySelector('meta[name="theme-color"]');
+    if (themeColorMeta) {
+      themeColorMeta.setAttribute('content', theme === 'dark' ? '#0c0a09' : '#f5f5f4');
+    }
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
+  };
 
   const handleLogout = async () => {
     await logout();
     navigate('/');
   };
+
+  const themeLabel = theme === 'dark' ? 'Ativar modo claro' : 'Ativar modo escuro';
 
   return (
     <div className="app-shell">
@@ -64,6 +104,16 @@ export function Layout() {
                 </ButtonLink>
               </>
             )}
+
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={toggleTheme}
+              aria-label={themeLabel}
+              title={themeLabel}
+            >
+              {theme === 'dark' ? <Sun size={16} aria-hidden="true" /> : <Moon size={16} aria-hidden="true" />}
+            </Button>
           </nav>
         </div>
       </header>
