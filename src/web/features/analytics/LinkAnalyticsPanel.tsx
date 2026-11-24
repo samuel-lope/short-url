@@ -1,33 +1,9 @@
-import { useEffect, useState } from 'react';
-import { BarChart3, Link2, QrCode, Users } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { BarChart3, ExternalLink, Link2, QrCode, RefreshCw, Users } from 'lucide-react';
+import type { AnalyticsBreakdownItem, AnalyticsData } from '../../../shared/contracts.ts';
 import { apiRequest } from '../../lib/api.ts';
 import { FeatureGate, LockedFeatureNotice } from '../../shared/FeatureGate.tsx';
-import { Alert, Badge, BentoGrid, Skeleton, StatTile, Tile } from '../../shared/ui/index.ts';
-
-interface AnalyticsData {
-  link: { id: number; shortCode: string; title: string | null; totalClicks: number };
-  totals: { recordedEvents: number; uniqueVisitors: number; qrScans: number; linkClicks: number };
-  dailySeries: Array<{ day: string; total: number; qrScans: number; linkClicks: number }>;
-  byTarget: Array<{ id: number; label: string; targetUrl: string; clicksCount: number }>;
-  detailedLocked: boolean;
-  detailed: {
-    byCountry: Array<{ label: string; count: number }>;
-    byDevice: Array<{ label: string; count: number }>;
-    byOs: Array<{ label: string; count: number }>;
-    byReferer: Array<{ label: string; count: number }>;
-    recentEvents: Array<{
-      id: number;
-      source: string;
-      clickedAt: number;
-      country: string | null;
-      city: string | null;
-      deviceType: string | null;
-      os: string | null;
-      browser: string | null;
-      referer: string | null;
-    }>;
-  } | null;
-}
+import { Alert, Badge, BentoGrid, Button, EmptyState, Skeleton, StatTile, Tile } from '../../shared/ui/index.ts';
 
 function BreakdownTile({
   title,
@@ -35,16 +11,14 @@ function BreakdownTile({
   c = 1,
 }: {
   title: string;
-  items: Array<{ label: string; count: number }>;
+  items: AnalyticsBreakdownItem[];
   c?: 1 | 2 | 4;
 }) {
   const max = Math.max(1, ...items.map((i) => i.count));
   return (
     <Tile c={c} title={title}>
       {items.length === 0 ? (
-        <div className="text-muted" style={{ fontSize: '0.86rem' }}>
-          Sem registros ainda.
-        </div>
+        <div className="text-muted meta-text">Sem registros ainda.</div>
       ) : (
         <div>
           {items.map((item) => (
@@ -64,34 +38,45 @@ function BreakdownTile({
   );
 }
 
-export function LinkAnalyticsPanel({ linkId }: { linkId: number }) {
+export function LinkAnalyticsPanel({ linkId, shortUrl }: { linkId: number; shortUrl?: string }) {
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    async function load() {
-      setLoading(true);
+  const loadAnalytics = useCallback(
+    async (signal?: AbortSignal) => {
       setError(null);
       try {
         const res = await apiRequest<AnalyticsData>(`/api/analytics/links/${linkId}`, {
-          signal: controller.signal,
+          signal,
         });
-        if (!controller.signal.aborted) setData(res);
+        if (!signal?.aborted) setData(res);
       } catch (err) {
-        if (!controller.signal.aborted) {
+        if (!signal?.aborted) {
           setError(err instanceof Error ? err.message : 'Erro ao carregar métricas.');
         }
-      } finally {
-        if (!controller.signal.aborted) setLoading(false);
       }
-    }
-    void load();
+    },
+    [linkId]
+  );
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setLoading(true);
+    void loadAnalytics(controller.signal).finally(() => {
+      if (!controller.signal.aborted) setLoading(false);
+    });
     return () => {
       controller.abort();
     };
-  }, [linkId]);
+  }, [loadAnalytics]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadAnalytics();
+    setRefreshing(false);
+  };
 
   return (
     <FeatureGate
@@ -105,7 +90,46 @@ export function LinkAnalyticsPanel({ linkId }: { linkId: number }) {
       ) : error ? (
         <Alert tone="error">{error}</Alert>
       ) : data ? (
-        <BentoGrid cols={4} label="Registro de uso">
+        data.link.totalClicks === 0 ? (
+          <BentoGrid cols={4} label="Registro de uso">
+            <Tile c={4} variant="muted">
+              <EmptyState
+                icon={<BarChart3 size={28} aria-hidden="true" />}
+                title="Nenhum clique registrado ainda"
+                description="Este link ainda não recebeu acessos. Teste o link curto abaixo e atualize para conferir os primeiros registros."
+                action={
+                  <div className="cluster cluster-center">
+                    {shortUrl && (
+                      <a
+                        className="btn btn--primary btn--sm"
+                        href={shortUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <ExternalLink size={14} aria-hidden="true" />
+                        <span>Testar short link</span>
+                      </a>
+                    )}
+                    <Button size="sm" onClick={handleRefresh} disabled={refreshing}>
+                      <RefreshCw size={14} aria-hidden="true" />
+                      <span>{refreshing ? 'Atualizando...' : 'Atualizar'}</span>
+                    </Button>
+                  </div>
+                }
+              />
+            </Tile>
+          </BentoGrid>
+        ) : (
+          <div className="stack-md">
+            <div className="cluster-between">
+              <span className="text-muted meta-text">Métricas de cliques e acessos por QR Code</span>
+              <Button size="sm" onClick={handleRefresh} disabled={refreshing}>
+                <RefreshCw size={14} aria-hidden="true" />
+                <span>{refreshing ? 'Atualizando...' : 'Atualizar'}</span>
+              </Button>
+            </div>
+
+            <BentoGrid cols={4} label="Registro de uso">
           <StatTile
             label="Cliques totais"
             value={data.link.totalClicks}
@@ -187,6 +211,8 @@ export function LinkAnalyticsPanel({ linkId }: { linkId: number }) {
             )
           )}
         </BentoGrid>
+          </div>
+        )
       ) : null}
     </FeatureGate>
   );

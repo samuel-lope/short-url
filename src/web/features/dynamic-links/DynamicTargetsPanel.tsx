@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { CheckCircle2, Pencil, Plus, Shuffle, Trash2 } from 'lucide-react';
-import type { RuleConfig, RuleType } from '../../../shared/contracts.ts';
+import type { LinkTargetItem, RuleConfig, RuleType } from '../../../shared/contracts.ts';
 import { useAuth } from '../../app/AuthContext.tsx';
 import { apiRequest } from '../../lib/api.ts';
 import { FeatureGate, LockedFeatureNotice } from '../../shared/FeatureGate.tsx';
@@ -17,18 +17,6 @@ import {
   TextInput,
   Tile,
 } from '../../shared/ui/index.ts';
-
-export interface LinkTargetItem {
-  id: number;
-  linkId: number;
-  label: string;
-  targetUrl: string;
-  priority: number;
-  ruleType: RuleType;
-  ruleConfig: RuleConfig;
-  isActive: boolean;
-  clicksCount: number;
-}
 
 interface Props {
   linkId: number;
@@ -182,6 +170,22 @@ export function DynamicTargetsPanel({ linkId, mode, activeTargetId, targets, onR
     }
   };
 
+  const handleToggleTargetActive = async (target: LinkTargetItem) => {
+    setError(null);
+    setBusyId(target.id);
+    try {
+      await apiRequest(`/api/links/${linkId}/targets/${target.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ isActive: !target.isActive }),
+      });
+      await onRefresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao atualizar destino.');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const handleConfirmDelete = async () => {
     if (!deleteTarget) return;
     setError(null);
@@ -206,7 +210,7 @@ export function DynamicTargetsPanel({ linkId, mode, activeTargetId, targets, onR
       feature="url.dynamic_switch"
       fallback={<LockedFeatureNotice feature="url.dynamic_switch" title="URL Dinâmica bloqueada" />}
     >
-      <div style={{ display: 'grid', gap: '1.25rem' }}>
+      <div className="stack-md">
         {mode !== 'dynamic' && (
           <Alert tone="info">
             Este link está no modo <strong>Estático</strong>. Ao adicionar ou ativar um destino abaixo, ele passará automaticamente para o modo <strong>Dinâmico</strong>.
@@ -235,18 +239,17 @@ export function DynamicTargetsPanel({ linkId, mode, activeTargetId, targets, onR
                   variant={isSelected ? 'accent' : 'default'}
                   title={target.label}
                   action={
-                    <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                    <div className="cluster-xs">
+                      {!target.isActive && <Badge tone="danger">Inativo</Badge>}
                       <Badge tone={isSelected ? 'neutral' : 'accent'}>{target.ruleType}</Badge>
                       <Badge>{target.clicksCount} cliques</Badge>
                     </div>
                   }
                 >
-                  <div className="mono-url" style={{ fontSize: '0.86rem' }}>
-                    {target.targetUrl}
-                  </div>
+                  <div className="mono-url meta-text">{target.targetUrl}</div>
 
                   {chips.length > 0 && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+                    <div className="cluster-xs">
                       {chips.map((chip) => (
                         <Badge key={chip} tone="neutral">
                           {chip}
@@ -256,23 +259,32 @@ export function DynamicTargetsPanel({ linkId, mode, activeTargetId, targets, onR
                     </div>
                   )}
 
-                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: 'auto' }}>
+                  <div className="cluster push-end">
                     {isSelected ? (
                       <Badge tone="success">
                         <CheckCircle2 size={13} aria-hidden="true" />
                         <span>Ativo agora</span>
                       </Badge>
                     ) : (
-                      target.ruleType === 'manual' && (
+                      <>
+                        {target.ruleType === 'manual' && (
+                          <Button
+                            size="sm"
+                            disabled={busyId === target.id}
+                            onClick={() => handleActivate(target.id)}
+                          >
+                            <Shuffle size={14} aria-hidden="true" />
+                            <span>{busyId === target.id ? 'Ativando...' : 'Ativar destino'}</span>
+                          </Button>
+                        )}
                         <Button
                           size="sm"
                           disabled={busyId === target.id}
-                          onClick={() => handleActivate(target.id)}
+                          onClick={() => handleToggleTargetActive(target)}
                         >
-                          <Shuffle size={14} aria-hidden="true" />
-                          <span>Ativar destino</span>
+                          {target.isActive ? 'Pausar' : 'Reativar'}
                         </Button>
-                      )
+                      </>
                     )}
                     <Button
                       size="sm"
@@ -374,7 +386,7 @@ export function DynamicTargetsPanel({ linkId, mode, activeTargetId, targets, onR
               )}
 
               {ruleType === 'manual' && (
-                <label className="choice-pill" style={{ width: 'fit-content' }}>
+                <label className="choice-pill fit-content">
                   <input
                     type="checkbox"
                     checked={setAsActive}
@@ -520,7 +532,7 @@ export function DynamicTargetsPanel({ linkId, mode, activeTargetId, targets, onR
               />
             )}
           </Field>
-          <label className="choice-pill" style={{ width: 'fit-content' }}>
+          <label className="choice-pill fit-content">
             <input
               type="checkbox"
               checked={editActive}
@@ -528,7 +540,7 @@ export function DynamicTargetsPanel({ linkId, mode, activeTargetId, targets, onR
             />
             <span>Destino ativo para roteamento</span>
           </label>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.6rem' }}>
+          <div className="modal-actions">
             <Button size="sm" onClick={() => setEditingTarget(null)}>
               Cancelar
             </Button>
@@ -544,10 +556,10 @@ export function DynamicTargetsPanel({ linkId, mode, activeTargetId, targets, onR
         title="Remover destino?"
         onClose={() => setDeleteTarget(null)}
       >
-        <p style={{ marginTop: 0 }}>
+        <p className="mt-none">
           Remover o destino <strong>{deleteTarget?.label}</strong> (<span className="mono-url">{deleteTarget?.targetUrl}</span>)?
         </p>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.6rem' }}>
+        <div className="modal-actions">
           <Button size="sm" autoFocus onClick={() => setDeleteTarget(null)}>
             Cancelar
           </Button>
