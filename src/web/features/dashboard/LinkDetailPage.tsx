@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent, type KeyboardEvent } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, BarChart3, ExternalLink, Pencil, QrCode, Shuffle, Trash2 } from 'lucide-react';
+import type { LinkDetailResponse } from '../../../shared/contracts.ts';
 import { apiRequest } from '../../lib/api.ts';
 import { CopyButton } from '../../shared/CopyButton.tsx';
 import { FeatureGate } from '../../shared/FeatureGate.tsx';
@@ -17,31 +18,9 @@ import {
   TextInput,
   Tile,
 } from '../../shared/ui/index.ts';
-import { DynamicTargetsPanel, type LinkTargetItem } from '../dynamic-links/DynamicTargetsPanel.tsx';
+import { DynamicTargetsPanel } from '../dynamic-links/DynamicTargetsPanel.tsx';
 import { DynamicQrPanel } from '../qr-codes/DynamicQrPanel.tsx';
 import { LinkAnalyticsPanel } from '../analytics/LinkAnalyticsPanel.tsx';
-import type { QrStyle } from '../../../shared/contracts.ts';
-
-interface LinkDetailResponse {
-  link: {
-    id: number;
-    longUrl: string;
-    shortCode: string;
-    shortUrl: string;
-    qrUrl: string;
-    title: string | null;
-    mode: 'static' | 'dynamic';
-    activeTargetId: number | null;
-    isActive: boolean;
-    totalClicks: number;
-  };
-  targets: LinkTargetItem[];
-  qrCode: {
-    id: number;
-    scanCount: number;
-    style: Partial<QrStyle>;
-  } | null;
-}
 
 type TabKey = 'targets' | 'qr' | 'analytics';
 const TAB_KEYS: TabKey[] = ['targets', 'qr', 'analytics'];
@@ -49,12 +28,30 @@ const TAB_KEYS: TabKey[] = ['targets', 'qr', 'analytics'];
 export function LinkDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const linkId = Number(id);
+
+  const rawTab = searchParams.get('tab');
+  const activeTab: TabKey =
+    rawTab && (TAB_KEYS as readonly string[]).includes(rawTab) ? (rawTab as TabKey) : 'targets';
+
+  const setActiveTab = (next: TabKey) => {
+    setSearchParams(
+      (prev) => {
+        const updated = new URLSearchParams(prev);
+        updated.set('tab', next);
+        return updated;
+      },
+      { replace: true }
+    );
+  };
 
   const [data, setData] = useState<LinkDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<TabKey>('targets');
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [togglingActive, setTogglingActive] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [editTitle, setEditTitle] = useState('');
@@ -87,11 +84,19 @@ export function LinkDetailPage() {
 
   const handleToggleActive = async () => {
     if (!data) return;
-    await apiRequest(`/api/links/${data.link.id}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ isActive: !data.link.isActive }),
-    });
-    await loadDetail();
+    setTogglingActive(true);
+    setActionError(null);
+    try {
+      await apiRequest(`/api/links/${data.link.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ isActive: !data.link.isActive }),
+      });
+      await loadDetail();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Erro ao atualizar status do link.');
+    } finally {
+      setTogglingActive(false);
+    }
   };
 
   const openEditModal = () => {
@@ -128,8 +133,17 @@ export function LinkDetailPage() {
 
   const handleDelete = async () => {
     if (!data) return;
-    await apiRequest(`/api/links/${data.link.id}`, { method: 'DELETE' });
-    navigate('/app');
+    setDeleting(true);
+    setActionError(null);
+    try {
+      await apiRequest(`/api/links/${data.link.id}`, { method: 'DELETE' });
+      navigate('/app');
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Erro ao excluir link.');
+      setConfirmDeleteOpen(false);
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const handleTabKeyDown = (e: KeyboardEvent<HTMLButtonElement>, idx: number) => {
@@ -156,7 +170,7 @@ export function LinkDetailPage() {
   }
 
   return (
-    <div style={{ display: 'grid', gap: '1.25rem' }}>
+    <div className="stack-md">
       <div>
         <ButtonLink to="/app" variant="ghost" size="sm">
           <ArrowLeft size={15} aria-hidden="true" />
@@ -164,9 +178,11 @@ export function LinkDetailPage() {
         </ButtonLink>
       </div>
 
+      {actionError && <Alert tone="error">{actionError}</Alert>}
+
       <BentoGrid cols={4} label="Detalhes do link">
         <Tile c={3} as="section" aria-labelledby="link-detail-title">
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem' }}>
+          <div className="cluster-xs">
             <Badge tone={data.link.mode === 'dynamic' ? 'accent' : 'neutral'}>
               {data.link.mode === 'dynamic' ? 'URL Dinâmica' : 'URL Estática'}
             </Badge>
@@ -176,30 +192,38 @@ export function LinkDetailPage() {
             <Badge>{data.link.totalClicks} cliques</Badge>
           </div>
 
-          <div>
+          <div className="stack-xs">
             <h1 id="link-detail-title" className="page-title">
               {data.link.title || data.link.shortCode}
             </h1>
-            <div className="mono-url" style={{ fontWeight: 600, fontSize: '1.05rem', marginTop: '0.45rem' }}>
+            <div className="mono-url url-featured">
               <a href={data.link.shortUrl} target="_blank" rel="noreferrer">
                 {data.link.shortUrl} <ExternalLink size={14} aria-hidden="true" />
               </a>
             </div>
-            <div className="mono-url text-muted" style={{ fontSize: '0.84rem', marginTop: '0.2rem' }}>
+            <div className="mono-url text-muted meta-text">
               Fallback padrão: {data.link.longUrl}
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: 'auto' }}>
+          <div className="cluster push-end">
             <CopyButton text={data.link.shortUrl} label="Copiar URL" />
-            <Button size="sm" onClick={openEditModal}>
+            <Button size="sm" onClick={openEditModal} disabled={togglingActive || deleting}>
               <Pencil size={14} aria-hidden="true" />
               <span>Editar</span>
             </Button>
-            <Button size="sm" onClick={handleToggleActive}>
-              {data.link.isActive ? 'Pausar Link' : 'Reativar Link'}
+            <Button size="sm" onClick={handleToggleActive} disabled={togglingActive || deleting}>
+              {togglingActive ? 'Atualizando...' : data.link.isActive ? 'Pausar Link' : 'Reativar Link'}
             </Button>
-            <Button variant="danger" size="sm" onClick={() => setConfirmDeleteOpen(true)}>
+            <Button
+              variant="danger"
+              size="sm"
+              disabled={togglingActive || deleting}
+              onClick={() => {
+                setActionError(null);
+                setConfirmDeleteOpen(true);
+              }}
+            >
               <Trash2 size={15} aria-hidden="true" />
               <span>Excluir</span>
             </Button>
@@ -212,12 +236,12 @@ export function LinkDetailPage() {
           title="QR & Destinos"
           subtitle={`${data.targets.length} destino(s) configurado(s)`}
         >
-          <div style={{ fontSize: '0.9rem' }}>
+          <div className="meta-text">
             <div>
               Scans QR: <strong>{data.qrCode?.scanCount ?? 0}</strong>
             </div>
           </div>
-          <div style={{ marginTop: 'auto' }}>
+          <div className="push-end">
             <Button size="sm" onClick={() => setActiveTab('qr')}>
               <QrCode size={15} aria-hidden="true" />
               <span>Abrir QR Code</span>
@@ -295,7 +319,9 @@ export function LinkDetailPage() {
           </div>
 
           <div role="tabpanel" aria-labelledby="tab-analytics" hidden={activeTab !== 'analytics'}>
-            {activeTab === 'analytics' && <LinkAnalyticsPanel linkId={data.link.id} />}
+            {activeTab === 'analytics' && (
+              <LinkAnalyticsPanel linkId={data.link.id} shortUrl={data.link.shortUrl} />
+            )}
           </div>
         </Tile>
       </BentoGrid>
@@ -343,7 +369,7 @@ export function LinkDetailPage() {
 
           {editError && <Alert tone="error">{editError}</Alert>}
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.6rem' }}>
+          <div className="modal-actions">
             <Button size="sm" onClick={() => setEditOpen(false)}>
               Cancelar
             </Button>
@@ -355,15 +381,15 @@ export function LinkDetailPage() {
       </Modal>
 
       <Modal open={confirmDeleteOpen} title="Excluir link?" onClose={() => setConfirmDeleteOpen(false)}>
-        <p style={{ marginTop: 0 }}>
+        <p className="mt-none">
           Esta ação apagará permanentemente o link <strong className="mono-url">{data.link.shortUrl}</strong>, seus destinos dinâmicos, QR Code e histórico de uso.
         </p>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.6rem' }}>
-          <Button size="sm" autoFocus onClick={() => setConfirmDeleteOpen(false)}>
+        <div className="modal-actions">
+          <Button size="sm" autoFocus disabled={deleting} onClick={() => setConfirmDeleteOpen(false)}>
             Cancelar
           </Button>
-          <Button variant="danger" size="sm" onClick={handleDelete}>
-            Confirmar exclusão
+          <Button variant="danger" size="sm" disabled={deleting} onClick={handleDelete}>
+            {deleting ? 'Excluindo...' : 'Confirmar exclusão'}
           </Button>
         </div>
       </Modal>

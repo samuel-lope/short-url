@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Download, Save } from 'lucide-react';
-import type { QrStyle } from '../../../shared/contracts.ts';
+import type { LinkQrInfo, QrStyle } from '../../../shared/contracts.ts';
 import { apiRequest } from '../../lib/api.ts';
 import { FeatureGate, LockedFeatureNotice } from '../../shared/FeatureGate.tsx';
 import { CopyButton } from '../../shared/CopyButton.tsx';
@@ -19,11 +19,7 @@ interface Props {
   linkId: number;
   qrUrl: string;
   shortCode: string;
-  initialQr: {
-    id: number;
-    scanCount: number;
-    style: Partial<QrStyle>;
-  } | null;
+  initialQr: LinkQrInfo | null;
   onSaved: () => Promise<void>;
 }
 
@@ -124,13 +120,13 @@ export function DynamicQrPanel({ linkId, qrUrl, shortCode, initialQr, onSaved }:
           c={2}
           title="Pré-visualização"
           action={
-            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+            <div className="cluster-xs">
               <Badge tone="success">QR Dinâmico</Badge>
               <Badge>{initialQr?.scanCount ?? 0} scans</Badge>
             </div>
           }
         >
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.9rem' }}>
+          <div className="qr-preview-wrap">
             <div className="qr-frame" style={{ background: style.bgColor }}>
               {previewPng && (
                 <img
@@ -138,21 +134,21 @@ export function DynamicQrPanel({ linkId, qrUrl, shortCode, initialQr, onSaved }:
                   alt={`QR Code dinâmico para ${qrUrl}`}
                   width={220}
                   height={220}
-                  style={{ display: 'block', maxWidth: '100%', height: 'auto' }}
+                  className="qr-img"
                 />
               )}
               {style.frameLabel && (
-                <div style={{ fontWeight: 700, marginTop: '0.5rem', color: style.fgColor }}>
+                <div className="qr-frame-label" style={{ color: style.fgColor }}>
                   {style.frameLabel}
                 </div>
               )}
             </div>
 
-            <div className="mono-url text-muted" style={{ fontSize: '0.82rem', textAlign: 'center' }}>
+            <div className="mono-url text-muted meta-text">
               Codifica: <strong>{qrUrl}</strong>
             </div>
 
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+            <div className="cluster cluster-center">
               <CopyButton text={qrUrl} label="Copiar URL QR" />
               <Button size="sm" onClick={downloadPng}>
                 <Download size={15} aria-hidden="true" />
@@ -179,7 +175,7 @@ export function DynamicQrPanel({ linkId, qrUrl, shortCode, initialQr, onSaved }:
                   <TextInput
                     id={inputId}
                     type="color"
-                    style={{ padding: '0.25rem' }}
+                    className="input--color"
                     value={style.fgColor}
                     onChange={(e) => setStyle({ ...style, fgColor: e.target.value })}
                   />
@@ -191,7 +187,7 @@ export function DynamicQrPanel({ linkId, qrUrl, shortCode, initialQr, onSaved }:
                   <TextInput
                     id={inputId}
                     type="color"
-                    style={{ padding: '0.25rem' }}
+                    className="input--color"
                     value={style.bgColor}
                     onChange={(e) => setStyle({ ...style, bgColor: e.target.value })}
                   />
