@@ -3,6 +3,7 @@ import type { AppEnv } from '../types.ts';
 import { decodeCode } from '../services/hashids.ts';
 import { resolveDestination, type LinkRow, type LinkTargetRow } from '../services/routerEngine.ts';
 import { extractRequestMeta, recordClickEvent } from '../services/tracking.ts';
+import { runInBackground } from '../services/runtime.ts';
 
 export async function handleShortRedirect(
   c: Context<AppEnv>,
@@ -67,12 +68,7 @@ export async function handleShortRedirect(
     console.error('Tracking write failed:', err);
   });
 
-  try {
-    c.executionCtx.waitUntil(clickPromise);
-  } catch {
-    // Fallback for test environments without ExecutionContext
-    await clickPromise;
-  }
+  await runInBackground(c, clickPromise, { awaitFallback: true });
 
   return new Response(null, {
     status: 302,

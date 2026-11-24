@@ -1,10 +1,18 @@
 import { Hono } from 'hono';
-import { z } from 'zod';
-import { RULE_TYPES, ruleConfigSchema } from '../../shared/contracts.ts';
+import {
+  createLinkSchema,
+  createTargetSchema,
+  updateLinkSchema,
+  updateTargetSchema,
+  type QrStyle,
+  type RuleConfig,
+  type RuleType,
+} from '../../shared/contracts.ts';
 import type { AppEnv } from '../types.ts';
 import { requireAuth, requireFeature } from '../middleware/featureGate.ts';
 import { getFeatureLimit, hasFeature } from '../services/entitlements.ts';
 import { encodeId } from '../services/hashids.ts';
+import { apiError } from '../services/runtime.ts';
 import {
   isUniqueConstraintError,
   safeJsonParse,
@@ -12,31 +20,57 @@ import {
   validateHttpUrl,
 } from '../services/validation.ts';
 
-const createLinkSchema = z.object({
-  url: z.string().min(1, 'URL é obrigatória.'),
-  title: z.string().trim().max(120).optional().nullable(),
-  customSlug: z.string().trim().optional().nullable(),
-  mode: z.enum(['static', 'dynamic']).optional().default('static'),
-});
+interface LinkListRow {
+  id: number;
+  longUrl: string;
+  shortCode: string;
+  title: string | null;
+  mode: 'static' | 'dynamic';
+  activeTargetId: number | null;
+  isActive: number;
+  totalClicks: number;
+  createdAt: number;
+  updatedAt: number | null;
+  targetsCount: number;
+  activeTargetLabel: string | null;
+  activeTargetUrl: string | null;
+  qrScanCount: number | null;
+  qrId: number | null;
+}
 
-const updateLinkSchema = z.object({
-  title: z.string().trim().max(120).optional().nullable(),
-  url: z.string().optional(),
-  mode: z.enum(['static', 'dynamic']).optional(),
-  isActive: z.boolean().optional(),
-});
+interface LinkDetailRow {
+  id: number;
+  longUrl: string;
+  shortCode: string;
+  title: string | null;
+  mode: 'static' | 'dynamic';
+  activeTargetId: number | null;
+  isActive: number;
+  totalClicks: number;
+  createdAt: number;
+  updatedAt: number | null;
+}
 
-const createTargetSchema = z.object({
-  label: z.string().trim().min(1, 'Nome do destino é obrigatório.').max(80),
-  targetUrl: z.string().min(1, 'URL de destino é obrigatória.'),
-  ruleType: z.enum(RULE_TYPES).optional().default('manual'),
-  ruleConfig: ruleConfigSchema,
-  priority: z.number().int().min(0).max(999).optional().default(0),
-  isActive: z.boolean().optional().default(true),
-  setAsActive: z.boolean().optional().default(false),
-});
+interface LinkTargetDbRow {
+  id: number;
+  linkId: number;
+  label: string;
+  targetUrl: string;
+  priority: number;
+  ruleType: RuleType;
+  ruleConfig: string | null;
+  isActive: number;
+  clicksCount: number;
+  createdAt: number;
+}
 
-const updateTargetSchema = createTargetSchema.partial();
+interface QrCodeDbRow {
+  id: number;
+  isDynamic: number;
+  styleJson: string;
+  scanCount: number;
+  updatedAt: number;
+}
 
 function getRequestHost(originOrUrl: string): string[] {
   try {
@@ -212,7 +246,7 @@ linkRoutes.get('/', requireFeature('links.manage_own'), async (c) => {
       LIMIT ? OFFSET ?`
     )
       .bind(...bindings, limit, offset)
-      .all(),
+      .all<LinkListRow>(),
   ]);
 
   const total = countRow?.total ?? 0;
@@ -242,21 +276,21 @@ linkRoutes.post('/', requireFeature('links.create'), async (c) => {
 
   const parsed = createLinkSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) {
-    return c.json({ error: parsed.error.issues[0]?.message ?? 'Dados inválidos.' }, 400);
+    return apiError(c, 400, parsed.error.issues[0]?.message ?? 'Dados inválidos.');
   }
 
   if (parsed.data.customSlug && !hasFeature(features, 'links.custom_slug')) {
-    return c.json(
-      { error: 'Slug personalizado não liberado para sua conta.', code: 'FEATURE_LOCKED', feature: 'links.custom_slug' },
-      403
-    );
+    return apiError(c, 403, 'Slug personalizado não liberado para sua conta.', {
+      code: 'FEATURE_LOCKED',
+      feature: 'links.custom_slug',
+    });
   }
 
   if (parsed.data.mode === 'dynamic' && !hasFeature(features, 'url.dynamic_switch')) {
-    return c.json(
-      { error: 'URL dinâmica não liberada para sua conta.', code: 'FEATURE_LOCKED', feature: 'url.dynamic_switch' },
-      403
-    );
+    return apiError(c, 403, 'URL dinâmica não liberada para sua conta.', {
+      code: 'FEATURE_LOCKED',
+      feature: 'url.dynamic_switch',
+    });
   }
 
   const limit = getFeatureLimit(features, 'links.create');
@@ -265,7 +299,7 @@ linkRoutes.post('/', requireFeature('links.create'), async (c) => {
       .bind(user.id)
       .first<{ total: number }>();
     if ((count?.total ?? 0) >= limit) {
-      return c.json({ error: `Limite de ${limit} links atingido para o seu perfil.` }, 403);
+      return apiError(c, 403, `Limite de ${limit} links atingido para o seu perfil.`);
     }
   }
 
@@ -287,7 +321,7 @@ linkRoutes.post('/', requireFeature('links.create'), async (c) => {
 linkRoutes.get('/:id', requireFeature('links.manage_own'), async (c) => {
   const user = c.get('user')!;
   const linkId = Number(c.req.param('id'));
-  if (!Number.isInteger(linkId)) return c.json({ error: 'ID inválido.' }, 400);
+  if (!Number.isInteger(linkId)) return apiError(c, 400, 'ID inválido.');
 
   const link = await c.env.DB.prepare(
     `SELECT id, longURL AS longUrl, shortURL AS shortCode, titleURL AS title, mode,
@@ -296,9 +330,9 @@ linkRoutes.get('/:id', requireFeature('links.manage_own'), async (c) => {
      FROM links WHERE id = ? AND user_id = ?`
   )
     .bind(linkId, user.id)
-    .first<Record<string, unknown>>();
+    .first<LinkDetailRow>();
 
-  if (!link) return c.json({ error: 'Link não encontrado.' }, 404);
+  if (!link) return apiError(c, 404, 'Link não encontrado.');
 
   const [targetsRes, qr] = await Promise.all([
     c.env.DB.prepare(
@@ -308,13 +342,13 @@ linkRoutes.get('/:id', requireFeature('links.manage_own'), async (c) => {
        FROM link_targets WHERE link_id = ? ORDER BY priority ASC, id ASC`
     )
       .bind(linkId)
-      .all(),
+      .all<LinkTargetDbRow>(),
     c.env.DB.prepare(
       `SELECT id, is_dynamic AS isDynamic, style_json AS styleJson, scan_count AS scanCount, updated_at AS updatedAt
        FROM qr_codes WHERE link_id = ?`
     )
       .bind(linkId)
-      .first<Record<string, unknown>>(),
+      .first<QrCodeDbRow>(),
   ]);
 
   const origin = new URL(c.req.url).origin;
@@ -329,13 +363,13 @@ linkRoutes.get('/:id', requireFeature('links.manage_own'), async (c) => {
     targets: targetsRes.results.map((t) => ({
       ...t,
       isActive: t.isActive === 1,
-      ruleConfig: safeJsonParse(t.ruleConfig, null),
+      ruleConfig: safeJsonParse<RuleConfig>(t.ruleConfig, null),
     })),
     qrCode: qr
       ? {
           ...qr,
           isDynamic: qr.isDynamic === 1,
-          style: safeJsonParse<Record<string, unknown>>(qr.styleJson, {}),
+          style: safeJsonParse<Partial<QrStyle>>(qr.styleJson, {}),
         }
       : null,
   });
@@ -345,7 +379,7 @@ linkRoutes.patch('/:id', requireFeature('links.manage_own'), async (c) => {
   const user = c.get('user')!;
   const features = c.get('features');
   const linkId = Number(c.req.param('id'));
-  if (!Number.isInteger(linkId)) return c.json({ error: 'ID inválido.' }, 400);
+  if (!Number.isInteger(linkId)) return apiError(c, 400, 'ID inválido.');
 
   const existing = await c.env.DB.prepare(
     'SELECT id, longURL, titleURL, mode, is_active FROM links WHERE id = ? AND user_id = ?'
@@ -353,26 +387,26 @@ linkRoutes.patch('/:id', requireFeature('links.manage_own'), async (c) => {
     .bind(linkId, user.id)
     .first<{ id: number; longURL: string; titleURL: string | null; mode: 'static' | 'dynamic'; is_active: number }>();
 
-  if (!existing) return c.json({ error: 'Link não encontrado.' }, 404);
+  if (!existing) return apiError(c, 404, 'Link não encontrado.');
 
   const parsed = updateLinkSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) {
-    return c.json({ error: parsed.error.issues[0]?.message ?? 'Dados inválidos.' }, 400);
+    return apiError(c, 400, parsed.error.issues[0]?.message ?? 'Dados inválidos.');
   }
 
   let nextUrl = existing.longURL;
   if (parsed.data.url !== undefined) {
     const urlCheck = validateHttpUrl(parsed.data.url, getRequestHost(c.req.url));
-    if (!urlCheck.valid) return c.json({ error: urlCheck.error }, 400);
+    if (!urlCheck.valid) return apiError(c, 400, urlCheck.error);
     nextUrl = urlCheck.url;
   }
 
   const nextMode = parsed.data.mode ?? existing.mode;
   if (nextMode === 'dynamic' && !hasFeature(features, 'url.dynamic_switch')) {
-    return c.json(
-      { error: 'URL dinâmica não liberada para sua conta.', code: 'FEATURE_LOCKED', feature: 'url.dynamic_switch' },
-      403
-    );
+    return apiError(c, 403, 'URL dinâmica não liberada para sua conta.', {
+      code: 'FEATURE_LOCKED',
+      feature: 'url.dynamic_switch',
+    });
   }
 
   const nextTitle = parsed.data.title !== undefined ? parsed.data.title : existing.titleURL;
@@ -391,10 +425,10 @@ linkRoutes.patch('/:id', requireFeature('links.manage_own'), async (c) => {
 linkRoutes.delete('/:id', requireFeature('links.manage_own'), async (c) => {
   const user = c.get('user')!;
   const linkId = Number(c.req.param('id'));
-  if (!Number.isInteger(linkId)) return c.json({ error: 'ID inválido.' }, 400);
+  if (!Number.isInteger(linkId)) return apiError(c, 400, 'ID inválido.');
 
   const res = await c.env.DB.prepare('DELETE FROM links WHERE id = ? AND user_id = ?').bind(linkId, user.id).run();
-  if (!res.meta.changes) return c.json({ error: 'Link não encontrado.' }, 404);
+  if (!res.meta.changes) return apiError(c, 404, 'Link não encontrado.');
   return c.json({ ok: true });
 });
 
@@ -402,27 +436,23 @@ linkRoutes.post('/:id/targets', requireFeature('url.dynamic_switch'), async (c) 
   const user = c.get('user')!;
   const features = c.get('features');
   const linkId = Number(c.req.param('id'));
-  if (!Number.isInteger(linkId)) return c.json({ error: 'ID inválido.' }, 400);
+  if (!Number.isInteger(linkId)) return apiError(c, 400, 'ID inválido.');
 
   const link = await c.env.DB.prepare('SELECT id FROM links WHERE id = ? AND user_id = ?')
     .bind(linkId, user.id)
     .first();
-  if (!link) return c.json({ error: 'Link não encontrado.' }, 404);
+  if (!link) return apiError(c, 404, 'Link não encontrado.');
 
   const parsed = createTargetSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) {
-    return c.json({ error: parsed.error.issues[0]?.message ?? 'Dados inválidos.' }, 400);
+    return apiError(c, 400, parsed.error.issues[0]?.message ?? 'Dados inválidos.');
   }
 
   if (parsed.data.ruleType !== 'manual' && !hasFeature(features, 'url.conditional_rules')) {
-    return c.json(
-      {
-        error: 'Regras condicionais automáticas não liberadas para sua conta.',
-        code: 'FEATURE_LOCKED',
-        feature: 'url.conditional_rules',
-      },
-      403
-    );
+    return apiError(c, 403, 'Regras condicionais automáticas não liberadas para sua conta.', {
+      code: 'FEATURE_LOCKED',
+      feature: 'url.conditional_rules',
+    });
   }
 
   const targetLimit = getFeatureLimit(features, 'url.dynamic_switch');
@@ -431,12 +461,12 @@ linkRoutes.post('/:id/targets', requireFeature('url.dynamic_switch'), async (c) 
       .bind(linkId)
       .first<{ total: number }>();
     if ((count?.total ?? 0) >= targetLimit) {
-      return c.json({ error: `Limite de ${targetLimit} destinos por link atingido.` }, 403);
+      return apiError(c, 403, `Limite de ${targetLimit} destinos por link atingido.`);
     }
   }
 
   const urlCheck = validateHttpUrl(parsed.data.targetUrl, getRequestHost(c.req.url));
-  if (!urlCheck.valid) return c.json({ error: urlCheck.error }, 400);
+  if (!urlCheck.valid) return apiError(c, 400, urlCheck.error);
 
   const inserted = await c.env.DB.prepare(
     `INSERT INTO link_targets (link_id, label, target_url, priority, rule_type, rule_config, is_active)
@@ -454,7 +484,7 @@ linkRoutes.post('/:id/targets', requireFeature('url.dynamic_switch'), async (c) 
     )
     .first<{ id: number }>();
 
-  if (!inserted) return c.json({ error: 'Falha ao criar destino.' }, 500);
+  if (!inserted) return apiError(c, 500, 'Falha ao criar destino.');
 
   const now = Math.floor(Date.now() / 1000);
   if (parsed.data.setAsActive) {
@@ -478,7 +508,7 @@ linkRoutes.patch('/:id/targets/:targetId', requireFeature('url.dynamic_switch'),
   const linkId = Number(c.req.param('id'));
   const targetId = Number(c.req.param('targetId'));
   if (!Number.isInteger(linkId) || !Number.isInteger(targetId)) {
-    return c.json({ error: 'ID inválido.' }, 400);
+    return apiError(c, 400, 'ID inválido.');
   }
 
   const existing = await c.env.DB.prepare(
@@ -498,29 +528,25 @@ linkRoutes.patch('/:id/targets/:targetId', requireFeature('url.dynamic_switch'),
       is_active: number;
     }>();
 
-  if (!existing) return c.json({ error: 'Destino não encontrado.' }, 404);
+  if (!existing) return apiError(c, 404, 'Destino não encontrado.');
 
   const parsed = updateTargetSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) {
-    return c.json({ error: parsed.error.issues[0]?.message ?? 'Dados inválidos.' }, 400);
+    return apiError(c, 400, parsed.error.issues[0]?.message ?? 'Dados inválidos.');
   }
 
   const nextRuleType = parsed.data.ruleType ?? existing.rule_type;
   if (nextRuleType !== 'manual' && !hasFeature(features, 'url.conditional_rules')) {
-    return c.json(
-      {
-        error: 'Regras condicionais automáticas não liberadas para sua conta.',
-        code: 'FEATURE_LOCKED',
-        feature: 'url.conditional_rules',
-      },
-      403
-    );
+    return apiError(c, 403, 'Regras condicionais automáticas não liberadas para sua conta.', {
+      code: 'FEATURE_LOCKED',
+      feature: 'url.conditional_rules',
+    });
   }
 
   let nextUrl = existing.target_url;
   if (parsed.data.targetUrl !== undefined) {
     const urlCheck = validateHttpUrl(parsed.data.targetUrl, getRequestHost(c.req.url));
-    if (!urlCheck.valid) return c.json({ error: urlCheck.error }, 400);
+    if (!urlCheck.valid) return apiError(c, 400, urlCheck.error);
     nextUrl = urlCheck.url;
   }
 
@@ -556,18 +582,18 @@ linkRoutes.delete('/:id/targets/:targetId', requireFeature('url.dynamic_switch')
   const linkId = Number(c.req.param('id'));
   const targetId = Number(c.req.param('targetId'));
   if (!Number.isInteger(linkId) || !Number.isInteger(targetId)) {
-    return c.json({ error: 'ID inválido.' }, 400);
+    return apiError(c, 400, 'ID inválido.');
   }
 
   const link = await c.env.DB.prepare('SELECT id, active_target_id FROM links WHERE id = ? AND user_id = ?')
     .bind(linkId, user.id)
     .first<{ id: number; active_target_id: number | null }>();
-  if (!link) return c.json({ error: 'Link não encontrado.' }, 404);
+  if (!link) return apiError(c, 404, 'Link não encontrado.');
 
   const targetExists = await c.env.DB.prepare('SELECT id FROM link_targets WHERE id = ? AND link_id = ?')
     .bind(targetId, linkId)
     .first();
-  if (!targetExists) return c.json({ error: 'Destino não encontrado.' }, 404);
+  if (!targetExists) return apiError(c, 404, 'Destino não encontrado.');
 
   const statements: D1PreparedStatement[] = [
     c.env.DB.prepare('DELETE FROM link_targets WHERE id = ? AND link_id = ?').bind(targetId, linkId),
@@ -583,7 +609,7 @@ linkRoutes.delete('/:id/targets/:targetId', requireFeature('url.dynamic_switch')
 linkRoutes.patch('/:id/active-target', requireFeature('url.dynamic_switch'), async (c) => {
   const user = c.get('user')!;
   const linkId = Number(c.req.param('id'));
-  if (!Number.isInteger(linkId)) return c.json({ error: 'ID inválido.' }, 400);
+  if (!Number.isInteger(linkId)) return apiError(c, 400, 'ID inválido.');
 
   const body = (await c.req.json().catch(() => null)) as { targetId?: number | null } | null;
   const targetId = body?.targetId ?? null;
@@ -591,13 +617,13 @@ linkRoutes.patch('/:id/active-target', requireFeature('url.dynamic_switch'), asy
   const link = await c.env.DB.prepare('SELECT id FROM links WHERE id = ? AND user_id = ?')
     .bind(linkId, user.id)
     .first();
-  if (!link) return c.json({ error: 'Link não encontrado.' }, 404);
+  if (!link) return apiError(c, 404, 'Link não encontrado.');
 
   if (targetId !== null) {
     const target = await c.env.DB.prepare('SELECT id FROM link_targets WHERE id = ? AND link_id = ?')
       .bind(targetId, linkId)
       .first();
-    if (!target) return c.json({ error: 'Destino não encontrado neste link.' }, 404);
+    if (!target) return apiError(c, 404, 'Destino não encontrado neste link.');
   }
 
   const now = Math.floor(Date.now() / 1000);
