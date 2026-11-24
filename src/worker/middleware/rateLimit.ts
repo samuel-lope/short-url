@@ -1,6 +1,7 @@
 import type { MiddlewareHandler } from 'hono';
 import type { AppEnv } from '../types.ts';
 import { sha256Hex } from '../services/crypto.ts';
+import { apiError, runInBackground } from '../services/runtime.ts';
 
 interface RateLimitOptions {
   scope: string;
@@ -58,19 +59,16 @@ export function rateLimit(options: RateLimitOptions): MiddlewareHandler<AppEnv> 
         .bind(now - 60)
         .run()
         .catch(() => {});
-      try {
-        c.executionCtx.waitUntil(cleanup);
-      } catch {
-        // Ignore in test environments without ExecutionContext
-      }
+      void runInBackground(c, cleanup);
     }
 
     if (currentCount > options.maxRequests) {
       const retryAfter = Math.max(1, resetAt - now);
       c.header('Retry-After', String(retryAfter));
-      return c.json(
-        { error: 'Muitas tentativas. Aguarde alguns instantes antes de tentar novamente.' },
-        429
+      return apiError(
+        c,
+        429,
+        'Muitas tentativas. Aguarde alguns instantes antes de tentar novamente.'
       );
     }
 

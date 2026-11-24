@@ -3,6 +3,11 @@ import { createApp } from '../src/worker/index.ts';
 import { encodeId, decodeCode } from '../src/worker/services/hashids.ts';
 import { validateCustomSlug, validateHttpUrl } from '../src/worker/services/validation.ts';
 import { hashPassword, verifyPassword } from '../src/worker/services/crypto.ts';
+import {
+  resolveAnonymousFeatures,
+  resolveProfileFeatures,
+  resolveUserFeatures,
+} from '../src/worker/services/entitlements.ts';
 import { resolveDestination } from '../src/worker/services/routerEngine.ts';
 import { createTestD1 } from './helpers/d1Mock.ts';
 
@@ -545,5 +550,200 @@ describe('Full-stack API & Redirects', () => {
     expect(searchJson.links).toHaveLength(1);
     expect(searchJson.links[0].title).toBe('Beta');
     expect(searchJson.pagination.total).toBe(1);
+  });
+
+  it('resolves anonymous, profile, and user features in a single query with full_access and override precedence', async () => {
+    const db = createTestD1();
+    let prepareCount = 0;
+    const countedDb = {
+      prepare(sql: string) {
+        prepareCount += 1;
+        return db.prepare(sql);
+      },
+    } as unknown as D1Database;
+
+    // 1. resolveAnonymousFeatures with seeded 'anonymous' plan (1 SQL query)
+    prepareCount = 0;
+    const anonFeatures = await resolveAnonymousFeatures(countedDb);
+    expect(prepareCount).toBe(1);
+    expect(anonFeatures['links.create']).toEqual({ enabled: true, limit: null, source: 'plan' });
+    expect(anonFeatures['links.manage_own']).toEqual({ enabled: false, limit: null, source: 'plan' });
+
+    // 2. resolveProfileFeatures on registered (plan 1) vs full_access admin (plan 3), plus default fallback
+    await db
+      .prepare(
+        `INSERT INTO features (key, name, description, category, default_enabled)
+         VALUES ('custom.beta', 'Beta', '', 'custom', 1),
+                ('custom.off', 'Off', '', 'custom', 0)`
+      )
+      .run();
+
+    prepareCount = 0;
+    const regFeatures = await resolveProfileFeatures(countedDb, 1);
+    expect(prepareCount).toBe(1);
+    expect(regFeatures['links.create']).toEqual({ enabled: true, limit: 50, source: 'plan' });
+    expect(regFeatures['links.custom_slug']).toEqual({ enabled: false, limit: null, source: 'plan' });
+    expect(regFeatures['custom.beta']).toEqual({ enabled: true, limit: null, source: 'default' });
+    expect(regFeatures['custom.off']).toEqual({ enabled: false, limit: null, source: 'default' });
+
+    prepareCount = 0;
+    const adminProfileFeatures = await resolveProfileFeatures(countedDb, 3);
+    expect(prepareCount).toBe(1);
+    expect(adminProfileFeatures['links.custom_slug']).toEqual({
+      enabled: true,
+      limit: null,
+      source: 'full_access',
+    });
+    expect(adminProfileFeatures['custom.off']).toEqual({
+      enabled: true,
+      limit: null,
+      source: 'full_access',
+    });
+
+    // 3. resolveUserFeatures: override > full_access > plan > default, ignoring expired overrides
+    await db
+      .prepare(
+        `INSERT INTO users (id, email, password_hash, name, role, plan_id)
+         VALUES (1, 'reg@sa.api.br', 'hash', 'Reg', 'user', 1),
+                (2, 'adm@sa.api.br', 'hash', 'Adm', 'admin', 3)`
+      )
+      .run();
+
+    const now = Math.floor(Date.now() / 1000);
+    await db
+      .prepare(
+        `INSERT INTO user_feature_overrides (user_id, feature_key, enabled, limit_value, expires_at)
+         VALUES
+           (1, 'links.custom_slug', 1, 15, ?),
+           (1, 'links.create', 1, NULL, NULL),
+           (1, 'url.dynamic_switch', 0, NULL, NULL),
+           (1, 'analytics.detailed', 1, NULL, ?),
+           (2, 'qr.dynamic', 0, NULL, NULL),
+           (2, 'links.custom_slug', 0, NULL, ?)`
+      )
+      .bind(now + 3600, now - 60, now - 10)
+      .run();
+
+    prepareCount = 0;
+    const userFeatures = await resolveUserFeatures(countedDb, 1, 1);
+    expect(prepareCount).toBe(1);
+    expect(userFeatures['links.custom_slug']).toEqual({ enabled: true, limit: 15, source: 'override' });
+    expect(userFeatures['links.create']).toEqual({ enabled: true, limit: 50, source: 'override' });
+    expect(userFeatures['url.dynamic_switch']).toEqual({ enabled: false, limit: 5, source: 'override' });
+    expect(userFeatures['analytics.detailed']).toEqual({ enabled: false, limit: null, source: 'plan' });
+    expect(userFeatures['custom.beta']).toEqual({ enabled: true, limit: null, source: 'default' });
+
+    prepareCount = 0;
+    const adminUserFeatures = await resolveUserFeatures(countedDb, 2, 3);
+    expect(prepareCount).toBe(1);
+    expect(adminUserFeatures['qr.dynamic']).toEqual({ enabled: false, limit: null, source: 'override' });
+    expect(adminUserFeatures['links.custom_slug']).toEqual({
+      enabled: true,
+      limit: null,
+      source: 'full_access',
+    });
+
+    // 4. resolveAnonymousFeatures fallback when no 'anonymous' plan exists (1 SQL query)
+    await db.prepare("DELETE FROM plans WHERE slug = 'anonymous'").run();
+    prepareCount = 0;
+    const fallbackAnon = await resolveAnonymousFeatures(countedDb);
+    expect(prepareCount).toBe(1);
+    expect(fallbackAnon).toEqual({
+      'links.create': { enabled: true, limit: null, source: 'default' },
+    });
+  });
+
+  it('deactivates and reactivates a user via PUT /api/admin/users/:userId/permissions', async () => {
+    const db = createTestD1();
+    const env = createTestEnv(db);
+    const app = createApp();
+
+    const adminReg = await app.fetch(
+      new Request('https://sa.api.br/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'Admin', email: 'admin@sa.api.br', password: 'Password123!' }),
+      }),
+      env
+    );
+    expect(adminReg.status).toBe(201);
+    const adminCookie = extractSessionCookie(adminReg);
+
+    const userReg = await app.fetch(
+      new Request('https://sa.api.br/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'Member', email: 'member@sa.api.br', password: 'Password123!' }),
+      }),
+      env
+    );
+    expect(userReg.status).toBe(201);
+    const userBody = (await userReg.json()) as { user: { id: number } };
+    const userCookie = extractSessionCookie(userReg);
+
+    // Deactivate user via atomic permissions endpoint
+    const deactivateRes = await app.fetch(
+      new Request(`https://sa.api.br/api/admin/users/${userBody.user.id}/permissions`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Cookie: adminCookie },
+        body: JSON.stringify({
+          planId: 1,
+          isActive: false,
+          overrides: [],
+        }),
+      }),
+      env
+    );
+    expect(deactivateRes.status).toBe(200);
+
+    // Existing session is no longer authenticated
+    const meWhileInactive = await app.fetch(
+      new Request('https://sa.api.br/api/auth/me', { headers: { Cookie: userCookie } }),
+      env
+    );
+    expect(meWhileInactive.status).toBe(200);
+    const meInactiveJson = (await meWhileInactive.json()) as { user: unknown };
+    expect(meInactiveJson.user).toBeNull();
+
+    // Login is blocked with 403
+    const blockedLogin = await app.fetch(
+      new Request('https://sa.api.br/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'member@sa.api.br', password: 'Password123!' }),
+      }),
+      env
+    );
+    expect(blockedLogin.status).toBe(403);
+    const blockedJson = (await blockedLogin.json()) as { error: string };
+    expect(blockedJson.error).toBe('Conta desativada.');
+
+    // Reactivate user
+    const reactivateRes = await app.fetch(
+      new Request(`https://sa.api.br/api/admin/users/${userBody.user.id}/permissions`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Cookie: adminCookie },
+        body: JSON.stringify({
+          planId: 1,
+          isActive: true,
+          overrides: [],
+        }),
+      }),
+      env
+    );
+    expect(reactivateRes.status).toBe(200);
+
+    // Login succeeds again
+    const reactivatedLogin = await app.fetch(
+      new Request('https://sa.api.br/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'member@sa.api.br', password: 'Password123!' }),
+      }),
+      env
+    );
+    expect(reactivatedLogin.status).toBe(200);
+    const loginJson = (await reactivatedLogin.json()) as { user: { email: string } };
+    expect(loginJson.user.email).toBe('member@sa.api.br');
   });
 });

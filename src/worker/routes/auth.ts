@@ -1,27 +1,17 @@
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import { deleteCookie, setCookie } from 'hono/cookie';
-import { z } from 'zod';
+import { loginSchema, registerSchema } from '../../shared/contracts.ts';
 import type { AppEnv } from '../types.ts';
 import { SESSION_COOKIE_NAME } from '../middleware/auth.ts';
 import { rateLimit } from '../middleware/rateLimit.ts';
 import { generateSessionToken, hashPassword, sha256Hex, verifyPassword } from '../services/crypto.ts';
 import { resolveAnonymousFeatures, resolveUserFeatures } from '../services/entitlements.ts';
+import { apiError, runInBackground } from '../services/runtime.ts';
 import { isUniqueConstraintError } from '../services/validation.ts';
-
-const registerSchema = z.object({
-  name: z.string().trim().min(2, 'Nome deve ter ao menos 2 caracteres.').max(100),
-  email: z.string().trim().email('E-mail inválido.').max(180),
-  password: z.string().min(8, 'Senha deve ter ao menos 8 caracteres.').max(128),
-});
-
-const loginSchema = z.object({
-  email: z.string().trim().email('E-mail inválido.'),
-  password: z.string().min(1, 'Senha obrigatória.'),
-});
 
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 days
 
-function setSessionCookie(c: Parameters<typeof setCookie>[0], rawToken: string, reqUrl: string) {
+function setSessionCookie(c: Context<AppEnv>, rawToken: string, reqUrl: string) {
   const isHttps = reqUrl.startsWith('https://');
   setCookie(c, SESSION_COOKIE_NAME, rawToken, {
     httpOnly: true,
@@ -32,21 +22,14 @@ function setSessionCookie(c: Parameters<typeof setCookie>[0], rawToken: string, 
   });
 }
 
-function scheduleExpiredSessionCleanup(
-  db: D1Database,
-  c: { executionCtx: { waitUntil: (promise: Promise<unknown>) => void } }
-) {
+function scheduleExpiredSessionCleanup(db: D1Database, c: Context<AppEnv>) {
   const now = Math.floor(Date.now() / 1000);
   const cleanup = db
     .prepare('DELETE FROM sessions WHERE expires_at <= ?')
     .bind(now)
     .run()
     .catch(() => {});
-  try {
-    c.executionCtx.waitUntil(cleanup);
-  } catch {
-    // Ignore in test environments without ExecutionContext
-  }
+  void runInBackground(c, cleanup);
 }
 
 export const authRoutes = new Hono<AppEnv>();
@@ -63,13 +46,13 @@ authRoutes.get('/me', (c) => {
 authRoutes.post('/register', authRateLimit, async (c) => {
   const parsed = registerSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) {
-    return c.json({ error: parsed.error.issues[0]?.message ?? 'Dados inválidos.' }, 400);
+    return apiError(c, 400, parsed.error.issues[0]?.message ?? 'Dados inválidos.');
   }
 
   const email = parsed.data.email.toLowerCase();
   const existing = await c.env.DB.prepare('SELECT id FROM users WHERE email = ?').bind(email).first();
   if (existing) {
-    return c.json({ error: 'E-mail já cadastrado.' }, 409);
+    return apiError(c, 409, 'E-mail já cadastrado.');
   }
 
   const countRow = await c.env.DB.prepare('SELECT COUNT(*) AS total FROM users').first<{ total: number }>();
@@ -97,13 +80,13 @@ authRoutes.post('/register', authRateLimit, async (c) => {
       .first<{ id: number }>();
   } catch (err) {
     if (isUniqueConstraintError(err)) {
-      return c.json({ error: 'E-mail já cadastrado.' }, 409);
+      return apiError(c, 409, 'E-mail já cadastrado.');
     }
     throw err;
   }
 
   if (!inserted) {
-    return c.json({ error: 'Falha ao criar usuário.' }, 500);
+    return apiError(c, 500, 'Falha ao criar usuário.');
   }
 
   const rawToken = generateSessionToken();
@@ -141,7 +124,7 @@ authRoutes.post('/register', authRateLimit, async (c) => {
 authRoutes.post('/login', authRateLimit, async (c) => {
   const parsed = loginSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) {
-    return c.json({ error: parsed.error.issues[0]?.message ?? 'Credenciais inválidas.' }, 400);
+    return apiError(c, 400, parsed.error.issues[0]?.message ?? 'Credenciais inválidas.');
   }
 
   const email = parsed.data.email.toLowerCase();
@@ -167,11 +150,11 @@ authRoutes.post('/login', authRateLimit, async (c) => {
     }>();
 
   if (!row || !(await verifyPassword(parsed.data.password, row.password_hash))) {
-    return c.json({ error: 'E-mail ou senha incorretos.' }, 401);
+    return apiError(c, 401, 'E-mail ou senha incorretos.');
   }
 
   if (row.is_active !== 1) {
-    return c.json({ error: 'Conta desativada.' }, 403);
+    return apiError(c, 403, 'Conta desativada.');
   }
 
   const rawToken = generateSessionToken();
